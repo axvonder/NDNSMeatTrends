@@ -1289,18 +1289,200 @@ om1*(dm1+om1+pm1)/(dm1+om1)
 
 
 
+##########################plots playings#########################
 
 
-
-
-
-
-
+#MeatDays
 m1 <- svyglm(MeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
 m2 <- svyglm(ProcessedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
 m3 <- svyglm(RedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
 m4 <- svyglm(WhiteDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
 m5 <- svyglm(NoMeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
+
+# Predict fitted values for each model
+survey_years <- unique(dat.design$variables$SurveyYear)
+predictions <- data.frame(
+  SurveyYear = rep(survey_years, 5),
+  Category = factor(rep(c("MeatDays", "ProcessedDays", "RedDays", "WhiteDays", "NoMeatDays"), each = length(survey_years))),
+  PredictedDays = c(predict(m1, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m5, newdata = data.frame(SurveyYear = survey_years), type = "response"))
+)
+
+# Create a custom color palette using the darker colors from the "PuBuGn" palette
+color_palette <- c("#016c59", "#1c9099", "#67a9cf", "#756bb1", "#bdc9e1")
+
+# Create a custom factor level order based on the correct order
+predictions$Category <- factor(predictions$Category, levels = c("MeatDays", "ProcessedDays", "WhiteDays", "RedDays", "NoMeatDays"))
+
+# Update the category names with proper spacing
+levels(predictions$Category) <- c("Meat Days", "Processed Days", "White Days", "Red Days", "No Meat Days")
+
+# Create a combined plot with ggplot2 using the custom color palette, scatter points, and connected lines
+plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
+  geom_point(size = 1) +
+  geom_line() +
+  scale_color_manual(values = color_palette) +
+  labs(title = "Avg. days of meat consumption/4-day diary period",
+       x = "Survey Year",
+       y = "No. days",
+       color = "Category") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0))
+
+# Print the plot
+print(plot)
+
+#Occasions
+m1 <- svyglm(avgMeatokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m2 <- svyglm(avgProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m3 <- svyglm(avgRedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m4 <- svyglm(avgWhiteokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
+
+# Predict fitted values for each model
+survey_years <- unique(dat.design$variables$SurveyYear)
+predictions <- data.frame(
+  SurveyYear = rep(survey_years, 4),
+  Category = factor(rep(c("avgMeatokaj", "avgProcessedokaj", "avgRedokaj", "avgWhiteokaj"), each = length(survey_years))),
+  PredictedDays = c(predict(m1, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"))
+)
+
+# Create a custom color palette using the darker colors from the "PuBuGn" palette
+color_palette <- c("#016c59", "#1c9099", "#67a9cf", "#756bb1")
+
+# Create a custom factor level order based on the correct order
+predictions$Category <- factor(predictions$Category, levels = c("avgMeatokaj", "avgProcessedokaj", "avgWhiteokaj", "avgRedokaj"))
+
+# Update the category names with proper spacing
+levels(predictions$Category) <- c("Total meat", "Processed meat", "White meat", "Red meat")
+
+# Create a combined plot with ggplot2 using the custom color palette, scatter points, and connected lines
+plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
+  geom_point(size = 1) +
+  geom_line() +
+  scale_color_manual(values = color_palette) +
+  labs(title = "Avg. no. of meat-eating occasions/day",
+       x = "Survey Year",
+       y = "No. occasions",
+       color = "Category") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0))
+
+# Print the plot
+print(plot)
+
+
+
+
+
+
+#portion size
+m1 <- svyglm(gperokajMeat ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m2 <- svyglm(gperokajProcessed ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m3 <- svyglm(gperokajRed ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m4 <- svyglm(gperokajWhite ~ SurveyYear, family=poisson(link = "log"), dat.design)
+
+# Predict fitted values for each model
+survey_years <- unique(dat.design$variables$SurveyYear)
+predictions <- data.frame(
+  SurveyYear = rep(survey_years, 4),
+  Category = factor(rep(c("gperokajMeat", "gperokajProcessed", "gperokajRed", "gperokajWhite"), each = length(survey_years))),
+  PredictedDays = c(predict(m1, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"))
+)
+
+# Create a custom color palette using the darker colors from the "PuBuGn" palette
+color_palette <- c("#016c59", "#1c9099", "#67a9cf", "#756bb1")
+
+# Create a custom factor level order based on the correct order
+predictions$Category <- factor(predictions$Category, levels = c("gperokajWhite", "gperokajMeat", "gperokajRed", "gperokajProcessed"))
+
+# Update the category names with proper spacing
+levels(predictions$Category) <- c("White meat", "Total meat", "Red meat", "Processed meat")
+
+# Create a combined plot with ggplot2 using the custom color palette, scatter points, and connected lines
+plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
+  geom_point(size = 1) +
+  geom_line() +
+  scale_color_manual(values = color_palette) +
+  labs(title = "Avg. portion size (g) of meat-containing occasions",
+       x = "Survey Year",
+       y = "Portion size (g)",
+       color = "Category") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0))
+
+# Print the plot
+print(plot)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+###################more plots sandboxing##################3
+
+
+
+
+
+# Define data
+data <- data.frame(
+  Category = c("Portion Size", "Days", "Occasions"),
+  Percentage = c(57, 37, 6)
+)
+
+# Create the bar chart
+ggplot(data, aes(x = Category, y = Percentage, fill = Category)) +
+  geom_bar(stat = "identity", color = "black") +
+  scale_fill_manual(values = c("tomato", "steelblue", "gold")) +
+  labs(
+    title = "Reductions in Meat Consumption",
+    x = "Factors",
+    y = "Percentage"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 coef(m1)
 ggcoef(m1)
