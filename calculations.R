@@ -1583,7 +1583,7 @@ plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Categ
   geom_line() +
   geom_smooth(method = "glm", se = FALSE, linetype = "dashed", aes(group = Category)) + 
   scale_color_manual(values = color_palette) +
-  labs(title = "Portion size/meat-containing occasions",
+  labs(title = "Portion size/meat-containing occasion",
        x = "Survey Year",
        y = "Portion size (g)",
        color = "Category") +
