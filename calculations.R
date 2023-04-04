@@ -1291,9 +1291,8 @@ om1*(dm1+om1+pm1)/(dm1+om1)
 
 ##########################plots playings#########################
 
-
+#THIS WORKS DON'T TOUCH; with fitted dashed lines
 #MeatDays
-m1 <- svyglm(MeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
 m2 <- svyglm(ProcessedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
 m3 <- svyglm(RedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
 m4 <- svyglm(WhiteDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
@@ -1302,41 +1301,44 @@ m5 <- svyglm(NoMeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
 # Predict fitted values for each model
 survey_years <- unique(dat.design$variables$SurveyYear)
 predictions <- data.frame(
-  SurveyYear = rep(survey_years, 5),
-  Category = factor(rep(c("MeatDays", "ProcessedDays", "RedDays", "WhiteDays", "NoMeatDays"), each = length(survey_years))),
-  PredictedDays = c(predict(m1, newdata = data.frame(SurveyYear = survey_years), type = "response"),
-                    predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+  SurveyYear = rep(survey_years, 4),
+  Category = factor(rep(c("ProcessedDays", "RedDays", "WhiteDays", "NoMeatDays"), each = length(survey_years))),
+  PredictedDays = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
                     predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
                     predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"),
                     predict(m5, newdata = data.frame(SurveyYear = survey_years), type = "response"))
 )
 
 # Create a custom color palette using the darker colors from the "PuBuGn" palette
-color_palette <- c("#016c59", "#1c9099", "#67a9cf", "#756bb1", "#bdc9e1")
+color_palette <- c("#FDAE61", "#ABD9E9", "#D53E4F", "#41AB5D") #order: processed (orange), white (blue), red (red), no meat (green)
 
 # Create a custom factor level order based on the correct order
-predictions$Category <- factor(predictions$Category, levels = c("MeatDays", "ProcessedDays", "WhiteDays", "RedDays", "NoMeatDays"))
+predictions$Category <- factor(predictions$Category, levels = c("ProcessedDays", "WhiteDays", "RedDays", "NoMeatDays"))
 
 # Update the category names with proper spacing
-levels(predictions$Category) <- c("Meat Days", "Processed Days", "White Days", "Red Days", "No Meat Days")
+levels(predictions$Category) <- c("Processed", "White", "Red", "No Meat")
 
 # Create a combined plot with ggplot2 using the custom color palette, scatter points, and connected lines
 plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
   geom_point(size = 1) +
   geom_line() +
+  geom_smooth(method = "glm", se = FALSE, linetype = "dashed", aes(group = Category)) +
   scale_color_manual(values = color_palette) +
   labs(title = "Avg. days of meat consumption/4-day diary period",
        x = "Survey Year",
        y = "No. days",
        color = "Category") +
-  theme_minimal() +
+  theme_classic() +
   theme(axis.text.x = element_text(angle = 0))
 
 # Print the plot
 print(plot)
 
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Days plot.png", plot, width = 8, height = 10)
+
+
+#WORKS DON'T TOUCH - with fitted lines
 #Occasions
-m1 <- svyglm(avgMeatokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
 m2 <- svyglm(avgProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
 m3 <- svyglm(avgRedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
 m4 <- svyglm(avgWhiteokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
@@ -1344,45 +1346,45 @@ m4 <- svyglm(avgWhiteokaj ~ SurveyYear, family=poisson(link = "log"), dat.design
 # Predict fitted values for each model
 survey_years <- unique(dat.design$variables$SurveyYear)
 predictions <- data.frame(
-  SurveyYear = rep(survey_years, 4),
-  Category = factor(rep(c("avgMeatokaj", "avgProcessedokaj", "avgRedokaj", "avgWhiteokaj"), each = length(survey_years))),
-  PredictedDays = c(predict(m1, newdata = data.frame(SurveyYear = survey_years), type = "response"),
-                    predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+  SurveyYear = rep(survey_years, 3),
+  Category = factor(rep(c("avgProcessedokaj", "avgRedokaj", "avgWhiteokaj"), each = length(survey_years))),
+  PredictedDays = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
                     predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
                     predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"))
 )
 
 # Create a custom color palette using the darker colors from the "PuBuGn" palette
-color_palette <- c("#016c59", "#1c9099", "#67a9cf", "#756bb1")
+color_palette <- c("#FDAE61", "#ABD9E9", "#D53E4F") #order: processed (orange), white (blue), red (red)
 
 # Create a custom factor level order based on the correct order
-predictions$Category <- factor(predictions$Category, levels = c("avgMeatokaj", "avgProcessedokaj", "avgWhiteokaj", "avgRedokaj"))
+predictions$Category <- factor(predictions$Category, levels = c("avgProcessedokaj", "avgWhiteokaj", "avgRedokaj"))
 
 # Update the category names with proper spacing
-levels(predictions$Category) <- c("Total meat", "Processed meat", "White meat", "Red meat")
+levels(predictions$Category) <- c("Processed meat", "White meat", "Red meat")
 
 # Create a combined plot with ggplot2 using the custom color palette, scatter points, and connected lines
 plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
   geom_point(size = 1) +
   geom_line() +
+  geom_smooth(method = "glm", se = FALSE, linetype = "dashed", aes(group = Category)) + #this adds the fitted line
   scale_color_manual(values = color_palette) +
   labs(title = "Avg. no. of meat-eating occasions/day",
        x = "Survey Year",
        y = "No. occasions",
        color = "Category") +
-  theme_minimal() +
+  theme_classic() +
   theme(axis.text.x = element_text(angle = 0))
 
 # Print the plot
 print(plot)
 
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Occasions plot.png", plot, width = 8, height = 10)
 
 
 
 
-
+#DON'T TOUCH THIS WORKS -- with fitted lines
 #portion size
-m1 <- svyglm(gperokajMeat ~ SurveyYear, family=poisson(link = "log"), dat.design)
 m2 <- svyglm(gperokajProcessed ~ SurveyYear, family=poisson(link = "log"), dat.design)
 m3 <- svyglm(gperokajRed ~ SurveyYear, family=poisson(link = "log"), dat.design)
 m4 <- svyglm(gperokajWhite ~ SurveyYear, family=poisson(link = "log"), dat.design)
@@ -1390,39 +1392,40 @@ m4 <- svyglm(gperokajWhite ~ SurveyYear, family=poisson(link = "log"), dat.desig
 # Predict fitted values for each model
 survey_years <- unique(dat.design$variables$SurveyYear)
 predictions <- data.frame(
-  SurveyYear = rep(survey_years, 4),
-  Category = factor(rep(c("gperokajMeat", "gperokajProcessed", "gperokajRed", "gperokajWhite"), each = length(survey_years))),
-  PredictedDays = c(predict(m1, newdata = data.frame(SurveyYear = survey_years), type = "response"),
-                    predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+  SurveyYear = rep(survey_years, 3),
+  Category = factor(rep(c("gperokajProcessed", "gperokajRed", "gperokajWhite"), each = length(survey_years))),
+  PredictedDays = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
                     predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
                     predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"))
 )
 
 # Create a custom color palette using the darker colors from the "PuBuGn" palette
-color_palette <- c("#016c59", "#1c9099", "#67a9cf", "#756bb1")
+color_palette <- c("#ABD9E9", "#D53E4F", "#FDAE61") #order: white (blue), red (red), processed (orange)
 
 # Create a custom factor level order based on the correct order
-predictions$Category <- factor(predictions$Category, levels = c("gperokajWhite", "gperokajMeat", "gperokajRed", "gperokajProcessed"))
+predictions$Category <- factor(predictions$Category, levels = c("gperokajWhite", "gperokajRed", "gperokajProcessed"))
 
 # Update the category names with proper spacing
-levels(predictions$Category) <- c("White meat", "Total meat", "Red meat", "Processed meat")
+levels(predictions$Category) <- c("White meat", "Red meat", "Processed meat")
 
 # Create a combined plot with ggplot2 using the custom color palette, scatter points, and connected lines
 plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
   geom_point(size = 1) +
   geom_line() +
+  geom_smooth(method = "glm", se = FALSE, linetype = "dashed", aes(group = Category)) + #this adds the fitted line
   scale_color_manual(values = color_palette) +
   labs(title = "Avg. portion size (g) of meat-containing occasions",
        x = "Survey Year",
        y = "Portion size (g)",
        color = "Category") +
-  theme_minimal() +
+  theme_classic() +
   theme(axis.text.x = element_text(angle = 0))
 
 # Print the plot
 print(plot)
 
 
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Portion size plot.png", plot, width = 8, height = 10)
 
 
 
@@ -1435,6 +1438,163 @@ print(plot)
 
 
 
+
+
+
+
+
+
+
+
+
+###################3SEPARATE PLOTS WITH HUGE FONT FOR POSTER###################
+
+
+
+
+
+# Set font family and font size
+font_size <- 24
+font_family <- "Avenir"
+
+# MeatDays
+m2 <- svyglm(ProcessedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m3 <- svyglm(RedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m4 <- svyglm(WhiteDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m5 <- svyglm(NoMeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
+
+# Predict fitted values for each model
+survey_years <- unique(dat.design$variables$SurveyYear)
+predictions <- data.frame(
+  SurveyYear = rep(survey_years, 4),
+  Category = factor(rep(c("ProcessedDays", "RedDays", "WhiteDays", "NoMeatDays"), each = length(survey_years))),
+  PredictedDays = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m5, newdata = data.frame(SurveyYear = survey_years), type = "response"))
+)
+
+# Create a custom color palette using the darker colors from the "PuBuGn" palette
+color_palette <- c("#FDAE61", "#ABD9E9", "#D53E4F", "#41AB5D") #order: processed (orange), white (blue), red (red), no meat (green)
+
+# Create a custom factor level order based on the correct order
+predictions$Category <- factor(predictions$Category, levels = c("ProcessedDays", "WhiteDays", "RedDays", "NoMeatDays"))
+
+# Update the category names with proper spacing
+levels(predictions$Category) <- c("Processed", "White", "Red", "No Meat")
+
+# Create a combined plot with ggplot2 using the custom color palette, scatter points, and connected lines
+plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
+  geom_point(size = 1) +
+  geom_line() +
+  geom_smooth(method = "glm", se = FALSE, linetype = "dashed", aes(group = Category)) +
+  scale_color_manual(values = color_palette) +
+  labs(title = "Meat days/4-day diary period",
+       x = "Survey Year",
+       y = "No. days",
+       color = "Category") +
+  theme_classic(base_size = font_size, base_family = font_family) +
+  theme(axis.text.x = element_text(angle = 0),
+        legend.position = "none") # add this line to hide the legend
+
+# Print the plot
+print(plot)
+
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Days plot.png", plot, width = 8, height = 10)
+
+
+
+
+#Occasions
+m2 <- svyglm(avgProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m3 <- svyglm(avgRedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m4 <- svyglm(avgWhiteokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
+
+# Predict fitted values for each model
+survey_years <- unique(dat.design$variables$SurveyYear)
+predictions <- data.frame(
+  SurveyYear = rep(survey_years, 3),
+  Category = factor(rep(c("avgProcessedokaj", "avgRedokaj", "avgWhiteokaj"), each = length(survey_years))),
+  PredictedDays = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"))
+)
+
+# Create a custom color palette using the darker colors from the "PuBuGn" palette
+color_palette <- c("#FDAE61", "#ABD9E9", "#D53E4F") #order: processed (orange), white (blue), red (red)
+
+# Create a custom factor level order based on the correct order
+predictions$Category <- factor(predictions$Category, levels = c("avgProcessedokaj", "avgWhiteokaj", "avgRedokaj"))
+
+# Update the category names with proper spacing
+levels(predictions$Category) <- c("Processed meat", "White meat", "Red meat")
+
+# Create a combined plot with ggplot2 using the custom color palette, scatter points, and connected lines
+plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
+  geom_point(size = 1) +
+  geom_line() +
+  geom_smooth(method = "glm", se = FALSE, linetype = "dashed", aes(group = Category)) + 
+  scale_color_manual(values = color_palette) +
+  labs(title = "Meat-eating occasions/day",
+       x = "Survey Year",
+       y = "No. occasions",
+       color = "Category") +
+  theme_classic(base_size = font_size, base_family = font_family) +
+  theme(axis.text.x = element_text(angle = 0),
+        legend.position = "none") # add this line to hide the legend
+
+# Print the plot
+print(plot)
+
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Occasions plot.png", plot, width = 8, height = 10)
+
+
+
+
+
+
+#portion size
+m2 <- svyglm(gperokajProcessed ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m3 <- svyglm(gperokajRed ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m4 <- svyglm(gperokajWhite ~ SurveyYear, family=poisson(link = "log"), dat.design)
+
+# Predict fitted values for each model
+survey_years <- unique(dat.design$variables$SurveyYear)
+predictions <- data.frame(
+  SurveyYear = rep(survey_years, 3),
+  Category = factor(rep(c("gperokajProcessed", "gperokajRed", "gperokajWhite"), each = length(survey_years))),
+  PredictedDays = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"))
+)
+
+# Create a custom color palette using the darker colors from the "PuBuGn" palette
+color_palette <- c("#ABD9E9", "#D53E4F", "#FDAE61") #order: white (blue), red (red), processed (orange)
+
+# Create a custom factor level order based on the correct order
+predictions$Category <- factor(predictions$Category, levels = c("gperokajWhite", "gperokajRed", "gperokajProcessed"))
+
+# Update the category names with proper spacing
+levels(predictions$Category) <- c("White meat", "Red meat", "Processed meat")
+
+# Create a combined plot with ggplot2 using the custom color palette, scatter points, and connected lines
+plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
+  geom_point(size = 1) +
+  geom_line() +
+  geom_smooth(method = "glm", se = FALSE, linetype = "dashed", aes(group = Category)) + 
+  scale_color_manual(values = color_palette) +
+  labs(title = "Portion size/meat-containing occasions",
+       x = "Survey Year",
+       y = "Portion size (g)",
+       color = "Category") +
+  theme_classic(base_size = font_size, base_family = font_family) +
+  theme(axis.text.x = element_text(angle = 0),
+        legend.position = "none") # add this line to hide the legend
+
+# Print the plot
+print(plot)
+
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Portion size plot.png", plot, width = 8, height = 10)
 
 
 
