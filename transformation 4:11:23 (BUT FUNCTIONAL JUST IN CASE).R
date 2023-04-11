@@ -5,31 +5,42 @@ library(janitor)
 library(dplyr)
 #set wd
 setwd("/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data")
-# Upload datasets
-file_names <- c("ndns_rp_yr1-4a_foodleveldietarydata_uk_v2.csv",
-                "ndns_rp_yr5-6a_foodleveldietarydata_v2.csv",
-                "ndns_rp_yr7-8a_foodleveldietarydata.csv",
-                "ndns_rp_yr9a_foodleveldietarydata_uk_20210831.csv",
-                "ndns_rp_yr10a_foodleveldietarydata_uk_20210831.csv",
-                "ndns_rp_yr11a_foodleveldietarydata_uk_20210831.csv")
-# Combine datasets
-data_list <- lapply(file_names, read.csv)
-combined_data <- Reduce(function(x, y) merge(x, y, all = TRUE), data_list)
+#upload datasets
+yr1_4 <- read.csv('ndns_rp_yr1-4a_foodleveldietarydata_uk_v2.csv')
+yr5_6 <- read.csv('ndns_rp_yr5-6a_foodleveldietarydata_v2.csv')
+yr7_8 <- read.csv('ndns_rp_yr7-8a_foodleveldietarydata.csv')
+yr9 <- read.csv('ndns_rp_yr9a_foodleveldietarydata_uk_20210831.csv')
+yr10 <- read.csv('ndns_rp_yr10a_foodleveldietarydata_uk_20210831.csv')
+yr11 <- read.csv('ndns_rp_yr11a_foodleveldietarydata_uk_20210831.csv')
+#combine datasets
+pair1 <- merge.data.frame(yr1_4, yr5_6, all = TRUE)
+pair2 <- merge.data.frame(yr7_8, yr9, all = TRUE)
+pair3 <- merge.data.frame(yr10, yr11, all = TRUE)
+pentult <- merge.data.frame(pair1, pair2, all = TRUE)
+ult <- merge.data.frame(pentult, pair3, all = TRUE)
 #save final merged dataset
-write.csv(combined_data,"/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data/combfoodlev.csv", row.names = F)
+write.csv(ult,"/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data/combfoodlev.csv", row.names = F)
 ##################### COMBINING DATA CHECKPOINT #################################
 #read in combined dataset (years 1 - 11 food level data)
 ult <- read.csv('combfoodlev.csv')
 #combine two age variables (age variable switched from "Age" to "AgeR" in years 7 & 8)
 ult$Age <- ifelse(is.na(ult$Age), ult$AgeR, ult$Age)
-#delete AgeR (so that only 1 age variable remains)
+#delete AgeR
 ult <- ult[ , -which(names(ult) %in% c("AgeR"))]
 #change survey year to just numbers
-for (year_num in 1:11) {
-  ult$SurveyYear <- ifelse(ult$SurveyYear == paste("NDNS Year", year_num), year_num, ult$SurveyYear)
-}
+ult$SurveyYear <- ifelse((ult$SurveyYear == "NDNS Year 1"), 1, ult$SurveyYear)
+ult$SurveyYear <- ifelse((ult$SurveyYear == "NDNS Year 2"), 2, ult$SurveyYear)
+ult$SurveyYear <- ifelse((ult$SurveyYear == "NDNS Year 3"), 3, ult$SurveyYear)
+ult$SurveyYear <- ifelse((ult$SurveyYear == "NDNS Year 4"), 4, ult$SurveyYear)
+ult$SurveyYear <- ifelse((ult$SurveyYear == "NDNS Year 5"), 5, ult$SurveyYear)
+ult$SurveyYear <- ifelse((ult$SurveyYear == "NDNS Year 6"), 6, ult$SurveyYear)
+ult$SurveyYear <- ifelse((ult$SurveyYear == "NDNS Year 7"), 7, ult$SurveyYear)
+ult$SurveyYear <- ifelse((ult$SurveyYear == "NDNS Year 8"), 8, ult$SurveyYear)
+ult$SurveyYear <- ifelse((ult$SurveyYear == "NDNS Year 9"), 9, ult$SurveyYear)
+ult$SurveyYear <- ifelse((ult$SurveyYear == "NDNS Year 10"), 10, ult$SurveyYear)
+ult$SurveyYear <- ifelse((ult$SurveyYear == "NDNS Year 11"), 11, ult$SurveyYear)
 table(ult$SurveyYear)
-#convert mealtime to useable time variable
+#convert to useable time variable
 time<- c(ult$MealTime)
 ult$MealTime <- chron(times = time)
 #check
@@ -76,22 +87,27 @@ trim <- ult[ , -which(names(ult) %in% c("CoreBoost", "DiaryDate", "MealTimeDescr
                                         "FreeSugars", "Englystfibreg"))]
 dat <- trim
 #add variable for "item contains [type] meat"
-dat$itemContainProcessed <- as.integer(rowSums(dat[, c("ProcessedRedMeatg",
-                                                       "ProcessedPoultryg",
-                                                       "Burgersg", "Sausagesg")] > 0) > 0)
-dat$itemContainRed <- as.integer(rowSums(dat[, c("Beefg", "Lambg", "Porkg",
-                                                 "OtherRedMeatg", "Offalg")] > 0) > 0)
-dat$itemContainWhite <- as.integer(rowSums(dat[, c("Poultryg", "GameBirdsg")] > 0) > 0)
-dat$itemContainNoMeat <- as.integer(rowSums(dat[, c("ProcessedRedMeatg", "ProcessedPoultryg",
-                                                    "Burgersg", "Sausagesg", "Beefg",
-                                                    "Lambg", "Porkg", "OtherRedMeatg",
-                                                    "Offalg", "Poultryg", "GameBirdsg")] > 0) == 0)
-# Calculate itemMixedMeat and itemContainMeat
-dat$itemMixedMeat <- as.integer((dat$itemContainProcessed & (dat$itemContainRed | dat$itemContainWhite)) |
-                                  (dat$itemContainRed & (dat$itemContainProcessed | dat$itemContainWhite)) |
-                                  (dat$itemContainWhite & (dat$itemContainProcessed | dat$itemContainRed)))
-dat$itemContainMeat <- as.integer(dat$itemContainProcessed | dat$itemContainRed | dat$itemContainWhite)
-#check counts
+dat$itemContainProcessed <- ifelse((dat$ProcessedRedMeatg > 0 | dat$ProcessedPoultryg > 0 |
+                                  dat$Burgersg > 0 | dat$Sausagesg > 0), 1, 0)
+dat$itemContainRed <- ifelse((dat$Beefg > 0 | dat$Lambg > 0 | dat$Porkg > 0 |
+                            dat$OtherRedMeatg > 0 | dat$Offalg > 0), 1, 0)
+dat$itemContainWhite <- ifelse((dat$Poultryg > 0 | dat$GameBirdsg > 0), 1, 0)
+dat$itemContainNoMeat <- ifelse((dat$ProcessedRedMeatg == 0 & dat$ProcessedPoultryg == 0 &
+                               dat$Burgersg == 0 & dat$Sausagesg == 0 &
+                               dat$Beefg == 0 & dat$Lambg == 0 & dat$Porkg == 0 &
+                               dat$OtherRedMeatg == 0 & dat$Offalg == 0 &
+                               dat$Poultryg == 0 & dat$GameBirdsg == 0), 1, 0)
+dat$itemMixedMeat <- ifelse((dat$itemContainProcessed == 1 & (dat$itemContainRed == 1 |
+                                                         dat$itemContainWhite == 1)) |
+                            (dat$itemContainRed == 1 & (dat$itemContainProcessed == 1 |
+                                                      dat$itemContainWhite == 1)) |
+                           (dat$itemContainWhite == 1 & (dat$itemContainProcessed == 1 |
+                                                       dat$itemContainRed == 1)), 1, 0)
+dat$itemContainMeat <- ifelse((dat$ProcessedRedMeatg > 0 | dat$ProcessedPoultryg > 0 |
+                             dat$Burgersg > 0 | dat$Sausagesg > 0 |
+                             dat$Beefg > 0 | dat$Lambg > 0 | dat$Porkg > 0 |
+                             dat$OtherRedMeatg > 0 | dat$Offalg > 0 |
+                             dat$Poultryg > 0 | dat$GameBirdsg > 0), 1, 0)
 table(dat$itemContainProcessed)
 table(dat$itemContainRed)
 table(dat$itemContainWhite)
@@ -101,27 +117,38 @@ table(dat$itemContainMeat)
 #ONLY for meat items that have ONE meat type. Mixed meat items will remain unclassified (-99)
 #Unclassified, mixed meat items, n = 3,566
 # 0 = no meat, 1 = processed meat, 2 = unprocessed red meat, 3 = unprocessed white meat
-dat$itemMeatType <- case_when(
-  dat$itemContainNoMeat == 1 ~ 0,
-  dat$itemContainProcessed == 1 & dat$itemMixedMeat == 0 ~ 1,
-  dat$itemContainRed == 1 & dat$itemMixedMeat == 0 ~ 2,
-  dat$itemContainWhite == 1 & dat$itemMixedMeat == 0 ~ 3,
-  TRUE ~ -99
-)
+dat$itemMeatType <- -99
+dat$itemMeatType <- ifelse(dat$itemContainNoMeat == 1, dat$itemMeatType == 0, dat$itemMeatType)
+dat$itemMeatType <- ifelse((dat$itemMeatType == -99 & dat$itemContainProcessed == 1 &
+                          dat$itemMixedMeat == 0), 1, dat$itemMeatType)
+dat$itemMeatType <- ifelse((dat$itemMeatType == -99 & dat$itemContainRed == 1 &
+                          dat$itemMixedMeat == 0), 2, dat$itemMeatType)
+dat$itemMeatType <- ifelse((dat$itemMeatType == -99 & dat$itemContainWhite == 1 &
+                          dat$itemMixedMeat == 0), 3, dat$itemMeatType)
 table(dat$itemMeatType)
 #counts total number of food items consumed per day
-# Function to calculate and clean total items per day
-calc_total_items_per_day <- function(data, day) {
-  zz <- data[data$DayNo == day, c("seriali", "Sex")]
-  zz_day <- as_tibble(zz %>% group_by(seriali, Sex) %>% mutate(!!paste0("Day", day, "TotalNo") := n()))
-  zz_day_clean <- zz_day %>% distinct(seriali, .keep_all = TRUE)
-  return(zz_day_clean[, c(1, 3)])
-}
-# Calculate total items per day and merge with dat
-for (day in 1:4) {
-  zz_day_clean <- calc_total_items_per_day(dat, day)
-  dat <- merge(dat, zz_day_clean, by = "seriali", all.x = TRUE)
-}
+zz <- dat[dat$DayNo == 1, c("seriali", "Sex")]
+zz1 <- as_tibble(zz %>% group_by(seriali, Sex) %>% mutate(Day1TotalNo = n()))
+zz <- dat[dat$DayNo == 2, c("seriali", "Sex")]
+zz2 <- as_tibble(zz %>% group_by(seriali, Sex) %>% mutate(Day2TotalNo = n()))
+zz <- dat[dat$DayNo == 3, c("seriali", "Sex")]
+zz3 <- as_tibble(zz %>% group_by(seriali, Sex) %>% mutate(Day3TotalNo = n()))
+zz <- dat[dat$DayNo == 4, c("seriali", "Sex")]
+zz4 <- as_tibble(zz %>% group_by(seriali, Sex) %>% mutate(Day4TotalNo = n()))
+#isolate 'total items' count column (with id column)
+zz1mod <- zz1[,c(1,3)]
+zz1clean <- zz1mod %>% distinct(seriali, .keep_all = TRUE)
+zz2mod <- zz2[,c(1,3)]
+zz2clean <- zz2mod %>% distinct(seriali, .keep_all = TRUE)
+zz3mod <- zz3[,c(1,3)]
+zz3clean <- zz3mod %>% distinct(seriali, .keep_all = TRUE)
+zz4mod <- zz4[,c(1,3)]
+zz4clean <- zz4mod %>% distinct(seriali, .keep_all = TRUE)
+#add 'total items' variable
+dat <- merge(dat, zz1clean, by = "seriali", all.x = TRUE)
+dat <- merge(dat, zz2clean, by = "seriali", all.x = TRUE)
+dat <- merge(dat, zz3clean, by = "seriali", all.x = TRUE)
+dat <- merge(dat, zz4clean, by = "seriali", all.x = TRUE)
 #categorize a day as processed-meat-containing, red-meat-containing, white-meat-containing, no-meat-containing
 dat <- dat %>%
   #group by ID & day number
@@ -172,46 +199,70 @@ dat <- dat %>%
   fill(ProcessedDays, RedDays, WhiteDays, MeatDays, NoMeatDays) %>%
   fill(ProcessedDays, RedDays, WhiteDays, MeatDays, NoMeatDays, .direction = "up")
 #sum food(g) information by eating occasion
-column_names <- c("Beefg", "Lambg", "Porkg", "ProcessedRedMeatg", "OtherRedMeatg", "Burgersg", "Sausagesg", "Offalg", "Poultryg", "ProcessedPoultryg", "GameBirdsg", "TotalGrams", "Energykcal")
-for (col in column_names) {
-  okaj <- dat %>% group_by(seriali, DayNo, EatingOkaj) %>% summarise(!!paste0("okaj", col) := sum(!!sym(col)))
-  dat <- merge.data.frame(okaj, dat, all = TRUE)
-}
+okaj <- dat %>% group_by(seriali, DayNo, EatingOkaj) %>% summarise(okajBeefg = sum(Beefg))
+dat <- merge.data.frame(okaj, dat, all = TRUE)
+okaj <- dat %>% group_by(seriali, DayNo, EatingOkaj) %>% summarise(okajLambg = sum(Lambg))
+dat <- merge.data.frame(okaj, dat, all = TRUE)
+okaj <- dat %>% group_by(seriali, DayNo, EatingOkaj) %>% summarise(okajPorkg = sum(Porkg))
+dat <- merge.data.frame(okaj, dat, all = TRUE)
+okaj <- dat %>% group_by(seriali, DayNo, EatingOkaj) %>% summarise(okajProcessedRedMeatg = sum(ProcessedRedMeatg))
+dat <- merge.data.frame(okaj, dat, all = TRUE)
+okaj <- dat %>% group_by(seriali, DayNo, EatingOkaj) %>% summarise(okajOtherRedMeatg = sum(OtherRedMeatg))
+dat <- merge.data.frame(okaj, dat, all = TRUE)
+okaj <- dat %>% group_by(seriali, DayNo, EatingOkaj) %>% summarise(okajBurgersg = sum(Burgersg))
+dat <- merge.data.frame(okaj, dat, all = TRUE)
+okaj <- dat %>% group_by(seriali, DayNo, EatingOkaj) %>% summarise(okajSausagesg = sum(Sausagesg))
+dat <- merge.data.frame(okaj, dat, all = TRUE)
+okaj <- dat %>% group_by(seriali, DayNo, EatingOkaj) %>% summarise(okajOffalg = sum(Offalg))
+dat <- merge.data.frame(okaj, dat, all = TRUE)
+okaj <- dat %>% group_by(seriali, DayNo, EatingOkaj) %>% summarise(okajPoultryg = sum(Poultryg))
+dat <- merge.data.frame(okaj, dat, all = TRUE)
+okaj <- dat %>% group_by(seriali, DayNo, EatingOkaj) %>% summarise(okajProcessedPoultryg = sum(ProcessedPoultryg))
+dat <- merge.data.frame(okaj, dat, all = TRUE)
+okaj <- dat %>% group_by(seriali, DayNo, EatingOkaj) %>% summarise(okajGameBirdsg = sum(GameBirdsg))
+dat <- merge.data.frame(okaj, dat, all = TRUE)
+okaj <- dat %>% group_by(seriali, DayNo, EatingOkaj) %>% summarise(okajTotalGrams = sum(TotalGrams))
+dat <- merge.data.frame(okaj, dat, all = TRUE)
+okaj <- dat %>% group_by(seriali, DayNo, EatingOkaj) %>% summarise(okajEnergykcal = sum(Energykcal))
+dat <- merge.data.frame(okaj, dat, all = TRUE)
 #add variable for "occasion contains [type] meat"
 dat <- dat %>%
-  mutate(
-    okajContainProcessed = case_when(
-      (okajProcessedRedMeatg > 0 | okajProcessedPoultryg > 0 | okajBurgersg > 0 | okajSausagesg > 0) ~ 1,
-      TRUE ~ 0
-    ),
-    okajContainRed = case_when(
-      (okajBeefg > 0 | okajLambg > 0 | okajPorkg > 0 | okajOtherRedMeatg > 0 | okajOffalg > 0) ~ 1,
-      TRUE ~ 0
-    ),
-    okajContainWhite = case_when(
-      (okajPoultryg > 0 | okajGameBirdsg > 0) ~ 1,
-      TRUE ~ 0
-    ),
-    okajContainNoMeat = case_when(
-      (okajProcessedRedMeatg == 0 & okajProcessedPoultryg == 0 & okajBurgersg == 0 &
-         okajSausagesg == 0 & okajBeefg == 0 & okajLambg == 0 & okajPorkg == 0 &
-         okajOtherRedMeatg == 0 & okajOffalg == 0 & okajPoultryg == 0 &
-         okajGameBirdsg == 0) ~ 1,
-      TRUE ~ 0
-    ),
-    okajMixedMeat = case_when(
-      ((okajContainProcessed == 1 & (okajContainRed == 1 | okajContainWhite == 1)) |
-         (okajContainRed == 1 & (okajContainProcessed == 1 | okajContainWhite == 1)) |
-         (okajContainWhite == 1 & (okajContainProcessed == 1 | okajContainRed == 1))) ~ 1,
-      TRUE ~ 0
-    ),
-    okajContainMeat = case_when(
-      (okajProcessedRedMeatg > 0 | okajProcessedPoultryg > 0 | okajBurgersg > 0 |
-         okajSausagesg > 0 | okajBeefg > 0 | okajLambg > 0 | okajPorkg > 0 |
-         okajOtherRedMeatg > 0 | okajOffalg > 0 | okajPoultryg > 0 | okajGameBirdsg > 0) ~ 1,
-      TRUE ~ 0
-    )
-  )
+  mutate(okajContainProcessed = case_when(
+    (okajProcessedRedMeatg >0 | okajProcessedPoultryg >0 | okajBurgersg >0 | okajSausagesg >0) ~ 1,
+    TRUE ~ 0
+  ))
+dat <- dat %>%
+  mutate(okajContainRed = case_when(
+    (okajBeefg >0 | okajLambg >0 | okajPorkg >0 | okajOtherRedMeatg >0 | okajOffalg >0) ~ 1,
+    TRUE ~ 0
+  ))
+dat <- dat %>%
+  mutate(okajContainWhite = case_when(
+    (okajPoultryg >0 | okajGameBirdsg >0) ~ 1,
+    TRUE ~ 0
+  ))
+dat <- dat %>%
+  mutate(okajContainNoMeat = case_when(
+    (okajProcessedRedMeatg == 0 & okajProcessedPoultryg == 0 & okajBurgersg == 0 &
+       okajSausagesg == 0 & okajBeefg == 0 & okajLambg == 0 & okajPorkg == 0 &
+       okajOtherRedMeatg == 0 & okajOffalg == 0 & okajPoultryg == 0 &
+       okajGameBirdsg == 0) ~ 1,
+    TRUE ~ 0
+  ))
+dat <- dat %>%
+  mutate(okajMixedMeat = case_when(
+    ((okajContainProcessed == 1 & (okajContainRed == 1 | okajContainWhite == 1)) |
+      (okajContainRed == 1 & (okajContainProcessed == 1 | okajContainWhite == 1)) |
+      (okajContainWhite == 1 & (okajContainProcessed == 1 | okajContainRed == 1))) ~ 1,
+    TRUE ~ 0
+  ))
+dat <- dat %>%
+  mutate(okajContainMeat = case_when(
+    (okajProcessedRedMeatg > 0 | okajProcessedPoultryg > 0 | okajBurgersg > 0 |
+       okajSausagesg > 0 | okajBeefg > 0 | okajLambg > 0 | okajPorkg > 0 |
+       okajOtherRedMeatg > 0 | okajOffalg > 0 | okajPoultryg > 0 | okajGameBirdsg > 0) ~ 1,
+    TRUE ~ 0
+  ))
 #transform dataset to go from per item (current) to per occasion
 trans <- dat[(dat$new_meal == 1), ]
 trans <- trans %>%
