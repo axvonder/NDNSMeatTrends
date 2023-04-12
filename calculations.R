@@ -3,6 +3,9 @@ library(tidyverse)
 library(srvyr)
 library(survey)
 library(effects)
+library(ggplot2)
+library(RColorBrewer)
+library(scales)
 #set wd
 setwd("/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data")
 #upload datasets
@@ -10,6 +13,91 @@ dat <- read.csv('omega.csv')
 
 #remove participants with only 3 diary days (removed n = 323; n = 15,332)
 dat <- dat[!(dat$DiaryDaysCompleted == 3),]
+
+
+
+######################SANDBOX####################
+#create weighted proportion of total meat occasions per day
+# Create the survey design object
+survey_design <- svydesign(id = ~area, strata = ~astrata5, weights = ~wti, data = dat)
+# Create a new categorical variable based on "avgMeatokaj"
+dat$Meatokajcat <- cut(dat$avgMeatokaj, 
+                       breaks = c(-Inf, 1, 1.5, 2.5, 3, Inf), 
+                       labels = c("<1", "1", "2", "3", ">3"), 
+                       right = FALSE, 
+                       include.lowest = TRUE)
+#
+survey_design <- svydesign(id = ~area, strata = ~astrata5, weights = ~wti, data = dat)
+# categorical variable as factor
+dat$Meatokajcat <- as.factor(dat$Meatokajcat)
+# Calculate the weighted proportions for each category, by year
+weighted_proportions_by_year <- svyby(~Meatokajcat, ~SurveyYear, survey_design, svymean)
+#subset dat, check calculations
+dat_subset <- dat[, c("seriali", "avgMeatokaj", "Meatokajcat")]
+# Convert the weighted_proportions_by_year to a data frame
+weighted_proportions_by_year_df <- as.data.frame(weighted_proportions_by_year)
+# Remove the standard error columns
+weighted_proportions_no_se <- weighted_proportions_by_year_df %>%
+  select(-starts_with("se."))
+#with % text (excluding bottom 2 categories because they muddied the text a bit and are all <2%)
+plot <- ggplot(long_weighted_proportions, aes(x = SurveyYear, y = Proportion, fill = factor(Category, levels = unique(Category)))) +
+  geom_bar(stat = "identity", position = "stack") +
+  geom_text(aes(label = ifelse(Proportion > 0.03, paste0(round(Proportion*100),"%"), "")), 
+            position = position_stack(vjust = 0.5)) +
+  labs(title = NULL,
+       x = "Year",
+       y = "Proportion",
+       fill = "Meat occasions/day") +
+  theme_classic() +
+  scale_fill_manual(values = brewer.pal(5, "Reds"), 
+                    labels = c("<1", "1", "2", "3", ">3")) +
+  scale_x_continuous(breaks = unique(long_weighted_proportions$SurveyYear)) +
+  theme(text = element_text(family = "Avenir", size = 12))
+#thinking about combining the bottom two categories since they both contribute so little to the overall proportion
+file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/MeatOccasionsProp.png"
+# Save plot to file
+ggsave(file_path, plot, width = 10, height = 8, dpi = 300)
+
+
+
+
+# Create a srvyr object with the survey design
+dat_svy <- as_survey(survey_design)
+
+# Calculate the weighted proportion for each level of MeatDays by SurveyYear
+meat_days_prop <- dat_svy %>% 
+  group_by(SurveyYear) %>% 
+  summarize(prop_0 = survey_mean(MeatDays == 0),
+            prop_1 = survey_mean(MeatDays == 1),
+            prop_2 = survey_mean(MeatDays == 2),
+            prop_3 = survey_mean(MeatDays == 3),
+            prop_4 = survey_mean(MeatDays == 4))
+
+# View the results
+meat_days_prop
+# Identify the columns that end in "_se"
+se_cols <- grep("_se$", names(meat_days_prop))
+# Remove the columns that end in "_se"
+meat_days_prop_no_se <- meat_days_prop[, -se_cols]
+# Reshape the data from wide to long format
+meat_days_prop_long <- pivot_longer(meat_days_prop_no_se, cols = -SurveyYear, names_to = "MeatDays", values_to = "proportion")
+# Plot the stacked bar plot
+plot <- ggplot(meat_days_prop_long, aes(x = SurveyYear, y = proportion, fill = str_remove(MeatDays, "prop_"))) + 
+  geom_col() +
+  scale_fill_brewer(palette = "Reds", direction = 1) +
+  labs(x = "Survey Year", y = "Proportion", fill = "Meat Days") +
+  scale_x_continuous(breaks = meat_days_prop$SurveyYear, labels = meat_days_prop$SurveyYear) +
+  geom_text(aes(label = paste0(round(proportion*100),"%")), 
+            position = position_stack(vjust = 0.5)) +
+  theme_classic() +
+  theme(text = element_text(family = "Avenir", size = 12))
+
+file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/MeatDaysProp.png"
+# Save plot to file
+ggsave(file_path, plot, width = 10, height = 8, dpi = 300)
+
+
+
 
 #####################TABLE 1 - DEMOGRAPHICS#######################
 
