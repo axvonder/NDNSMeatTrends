@@ -6,6 +6,8 @@ library(effects)
 library(ggplot2)
 library(RColorBrewer)
 library(scales)
+library(gridExtra)
+library(cowplot)
 #set wd
 setwd("/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data")
 #upload datasets
@@ -1525,7 +1527,7 @@ predictions$Category <- factor(predictions$Category, levels = c("ProcessedDays",
 levels(predictions$Category) <- c("Processed", "White", "Red", "No Meat")
 
 # Create a combined plot with ggplot2 using the custom color palette, scatter points, and connected lines
-plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
+plot1 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
   geom_point(size = 1) +
   geom_line() +
   geom_smooth(method = "glm", se = FALSE, linetype = "dashed", aes(group = Category)) +
@@ -1535,9 +1537,9 @@ plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Categ
   theme(text = element_text(family = "Avenir", size = 12))
 
 # Print the plot
-print(plot)
+print(plot1)
 
-ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Days plot.png", plot, width = 6, height = 6)
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Days plot.png", plot1, width = 6, height = 6)
 
 
 #WORKS DON'T TOUCH - with fitted lines
@@ -1551,7 +1553,7 @@ survey_years <- unique(dat.design$variables$SurveyYear)
 predictions <- data.frame(
   SurveyYear = rep(survey_years, 3),
   Category = factor(rep(c("avgProcessedokaj", "avgRedokaj", "avgWhiteokaj"), each = length(survey_years))),
-  PredictedDays = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+  PredictedOccasions = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
                     predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
                     predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"))
 )
@@ -1566,7 +1568,7 @@ predictions$Category <- factor(predictions$Category, levels = c("avgProcessedoka
 levels(predictions$Category) <- c("Processed", "White", "Red")
 
 # Create a combined plot with ggplot2 using the custom color palette, scatter points, and connected lines
-plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
+plot2 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedOccasions, color = Category, group = Category)) +
   geom_point(size = 1) +
   geom_line() +
   geom_smooth(method = "glm", se = FALSE, linetype = "dashed", aes(group = Category)) + #this adds the fitted line
@@ -1576,9 +1578,9 @@ plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Categ
   theme(text = element_text(family = "Avenir", size = 12))
 
 # Print the plot
-print(plot)
+print(plot2)
 
-ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Occasions plot.png", plot, width = 6, height = 6)
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Occasions plot.png", plot2, width = 6, height = 6)
 
 
 
@@ -1594,7 +1596,7 @@ survey_years <- unique(dat.design$variables$SurveyYear)
 predictions <- data.frame(
   SurveyYear = rep(survey_years, 3),
   Category = factor(rep(c("gperokajProcessed", "gperokajRed", "gperokajWhite"), each = length(survey_years))),
-  PredictedDays = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+  PredictedPortion = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
                     predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
                     predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"))
 )
@@ -1609,7 +1611,7 @@ predictions$Category <- factor(predictions$Category, levels = c("gperokajWhite",
 levels(predictions$Category) <- c("White", "Red", "Processed")
 
 # Create a combined plot with ggplot2 using the custom color palette, scatter points, and connected lines
-plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
+plot3 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedPortion, color = Category, group = Category)) +
   geom_point(size = 1) +
   geom_line() +
   geom_smooth(method = "glm", se = FALSE, linetype = "dashed", aes(group = Category)) + #this adds the fitted line
@@ -1619,20 +1621,36 @@ plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Categ
   theme(text = element_text(family = "Avenir", size = 12))
 
 # Print the plot
-print(plot)
+print(plot3)
 
 
-ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Portion size plot.png", plot, width = 6, height = 6)
-
-
-
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Portion size plot.png", plot3, width = 6, height = 6)
 
 
 
 
 
 
+#combine all
+# Remove the legend from plot2 and plot3
+plot2 <- plot2 + theme(legend.position = "none")
+plot3 <- plot3 + theme(legend.position = "none")
 
+# Extract the legend from plot1
+legend_grob <- cowplot::get_legend(plot1)
+
+# Remove the legend from plot1
+plot1 <- plot1 + theme(legend.position = "none")
+
+# Combine the plots and legend into a single plot in the desired layout
+top_row <- cowplot::plot_grid(plot1, plot2, nrow = 1)
+bottom_row <- cowplot::plot_grid(plot3, legend_grob, nrow = 1, rel_widths = c(1, 1))
+combined_plot <- cowplot::plot_grid(top_row, bottom_row, ncol = 1, rel_heights = c(1, 1))
+
+# Display the combined plot
+print(combined_plot)
+
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 1.png", combined_plot, width = 8, height = 8, dpi = 600)
 
 
 
