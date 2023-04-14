@@ -207,53 +207,64 @@ dat <- dat %>%
     Age >= 60 ~ 5,
     TRUE ~ 99
   ))
+
+
+#subset population into years 1 and 11
+dat1 <- dat[dat$SurveyYear == 1, ]
+dat11 <- dat[dat$SurveyYear == 11, ]
+
 #specify survey weighting structure for descriptive analysis
-survey_design <- dat %>%
+survey_design1 <- dat1 %>%
+  as_survey_design(ids = area, # cluster ids
+                   weights = wti, # weight variable created above
+                   strata = astrata5 # sampling was stratified by district
+  )
+survey_design11 <- dat11 %>%
   as_survey_design(ids = area, # cluster ids
                    weights = wti, # weight variable created above
                    strata = astrata5 # sampling was stratified by district
   )
 
-#avg meat consumption
-survey_design %>%
-  survey_count(seriali)
-survey_design %>%
-  summarise(meatx = survey_mean(sumMeatg/4)) #total meat - 95.5g/d
-survey_design %>%
-  summarise(meatx = survey_mean(sumProcessedg/4)) #total processed meat - 30.1g/d
-survey_design %>%
-  summarise(meatx = survey_mean(sumRedg/4)) #total red meat - 30.4g/d
-survey_design %>%
-  summarise(meatx = survey_mean(sumWhiteg/4)) #total red meat - 35.1g/d
+#count age groups 
+#unweighted Ns
+table(dat1$AgeG)
+table(dat11$AgeG)
+#weighted%s
+survey_design1 %>%
+  group_by(AgeG) %>%
+  summarise(pct = survey_mean())
+survey_design11 %>%
+  group_by(AgeG) %>%
+  summarise(pct = survey_mean())
 
-#avg weighted age (40.2 yrs)
-survey_design %>%
-  summarise(agex = survey_mean(Age))
-#count age groups (<=10 = 1,755; 11-17 = 1,316; 18-40 = 4,704; 41-59 = 4,019; >=60 = 3,556)
-survey_design %>%
-  survey_count(AgeG)
-
-table(dat$AgeG)
-table(y11$AgeG)
-
-
-#gender breakdown (M = 7,568, F = 7,782)
-survey_design %>%
-  survey_count(Sex)
-
-#gender (M = 7072, F = 8260)
-table(dat$Sex)
+#sex
+#unweighted Ns
+table(dat1$Sex)
+table(dat11$Sex)
+#weighted %s
+survey_design1 %>%
+  group_by(Sex) %>%
+  summarise(pct = survey_mean())
+survey_design11 %>%
+  group_by(Sex) %>%
+  summarise(pct = survey_mean())
 
 #income tertiles
-survey_design %>%
-  survey_count(eqv)
+#unweighted Ns
+table(dat1$eqv)
+table(dat11$eqv)
+#missing
+1629-(506+448+470)
+1076-(315+307+312)
 #percentages of income tertiles
-survey_design %>%
+survey_design1 %>%
+  group_by(eqv) %>%
+  summarise(pct = survey_mean())
+survey_design11 %>%
   group_by(eqv) %>%
   summarise(pct = survey_mean())
 
-#income breakdown (1= 4,299, 2= 4,285, 3= 4,258, 12,842 total; 1,861 missing)
-table(dat$eqv)
+
 
 
 
