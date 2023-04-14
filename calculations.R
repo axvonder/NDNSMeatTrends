@@ -1486,6 +1486,17 @@ om1*(dm1+om1+pm1)/(dm1+om1)
 
 ##########################plots playings#########################
 
+#specify survey weighting structure for GLM
+dat$fpc <- 15332
+dat.design <-
+  svydesign(
+    id = ~area,
+    strata = ~astrata5,
+    data = dat,
+    weights = ~wti,
+    fpc = ~fpc
+  )
+
 #THIS WORKS DON'T TOUCH; with fitted dashed lines
 #MeatDays
 m2 <- svyglm(ProcessedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
@@ -1519,17 +1530,14 @@ plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Categ
   geom_line() +
   geom_smooth(method = "glm", se = FALSE, linetype = "dashed", aes(group = Category)) +
   scale_color_manual(values = color_palette) +
-  labs(title = "Avg. days of meat consumption/4-day diary period",
-       x = "Survey Year",
-       y = "No. days",
-       color = "Category") +
+  labs(x = "Survey Year", y = "Number of days (avg. across 4-day period)", color = "Meat category") +
   theme_classic() +
-  theme(axis.text.x = element_text(angle = 0))
+  theme(text = element_text(family = "Avenir", size = 12))
 
 # Print the plot
 print(plot)
 
-ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Days plot.png", plot, width = 8, height = 10)
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Days plot.png", plot, width = 6, height = 6)
 
 
 #WORKS DON'T TOUCH - with fitted lines
@@ -1555,7 +1563,7 @@ color_palette <- c("#FDAE61", "#ABD9E9", "#D53E4F") #order: processed (orange), 
 predictions$Category <- factor(predictions$Category, levels = c("avgProcessedokaj", "avgWhiteokaj", "avgRedokaj"))
 
 # Update the category names with proper spacing
-levels(predictions$Category) <- c("Processed meat", "White meat", "Red meat")
+levels(predictions$Category) <- c("Processed", "White", "Red")
 
 # Create a combined plot with ggplot2 using the custom color palette, scatter points, and connected lines
 plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
@@ -1563,17 +1571,14 @@ plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Categ
   geom_line() +
   geom_smooth(method = "glm", se = FALSE, linetype = "dashed", aes(group = Category)) + #this adds the fitted line
   scale_color_manual(values = color_palette) +
-  labs(title = "Avg. no. of meat-eating occasions/day",
-       x = "Survey Year",
-       y = "No. occasions",
-       color = "Category") +
+  labs(x = "Survey Year", y = "Number of meat-containing occasions/day", color = "Meat category") +
   theme_classic() +
-  theme(axis.text.x = element_text(angle = 0))
+  theme(text = element_text(family = "Avenir", size = 12))
 
 # Print the plot
 print(plot)
 
-ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Occasions plot.png", plot, width = 8, height = 10)
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Occasions plot.png", plot, width = 6, height = 6)
 
 
 
@@ -1601,7 +1606,7 @@ color_palette <- c("#ABD9E9", "#D53E4F", "#FDAE61") #order: white (blue), red (r
 predictions$Category <- factor(predictions$Category, levels = c("gperokajWhite", "gperokajRed", "gperokajProcessed"))
 
 # Update the category names with proper spacing
-levels(predictions$Category) <- c("White meat", "Red meat", "Processed meat")
+levels(predictions$Category) <- c("White", "Red", "Processed")
 
 # Create a combined plot with ggplot2 using the custom color palette, scatter points, and connected lines
 plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
@@ -1609,18 +1614,15 @@ plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Categ
   geom_line() +
   geom_smooth(method = "glm", se = FALSE, linetype = "dashed", aes(group = Category)) + #this adds the fitted line
   scale_color_manual(values = color_palette) +
-  labs(title = "Avg. portion size (g) of meat-containing occasions",
-       x = "Survey Year",
-       y = "Portion size (g)",
-       color = "Category") +
+  labs(x = "Survey Year", y = "Portion size (g)/meat-containing occasion", color = "Meat category") +
   theme_classic() +
-  theme(axis.text.x = element_text(angle = 0))
+  theme(text = element_text(family = "Avenir", size = 12))
 
 # Print the plot
 print(plot)
 
 
-ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Portion size plot.png", plot, width = 8, height = 10)
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Portion size plot.png", plot, width = 6, height = 6)
 
 
 
