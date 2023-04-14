@@ -197,6 +197,63 @@ ggsave(file_path, plot, width = 10, height = 8, dpi = 300)
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+################Decomp plots#########################
+
+#WORKS BUT NEEDS SOME EDITS
+
+# Define data
+meat_reduction_data <- data.frame(
+  categories = c("Portion size (g)", "Meat-eating days", "Meat-containing occasions"),
+  proportions = c(57, 37, 6)
+)
+
+# Calculate start points for the bars
+meat_reduction_data$start_points <- c(0, meat_reduction_data$proportions[1], sum(meat_reduction_data$proportions[1:2]))
+
+# Create manual y-axis labels
+y_axis_labels <- c("0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%")
+
+# Create manual x-axis labels
+x_axis_labels <- c("Portion size (g)", "Meat-eating days", "Meat-containing occasions")
+
+# Create the bar plot
+plot <- ggplot(meat_reduction_data, aes(x = categories, y = proportions, fill = categories)) +
+  geom_rect(aes(
+    xmin = c(0.4, 1.4, 2.4) + 0.6/3, xmax = c(1.6, 2.6, 3.6) - 0.6/3, ymin = start_points, ymax = start_points + proportions
+  ), fill = "#C6DBEF", color = "black", size = 0.2) +
+  geom_segment(aes(x = 1.6 - 0.6/3, y = 57, xend = 1.4 + 0.6/3, yend = 57), linewidth = 0.2) +
+  geom_segment(aes(x = 2.6 - 0.6/3, y = 57 + 37, xend = 2.4 + 0.6/3, yend = 57 + 37), linewidth = 0.2) +
+  geom_text(aes(x = c(1, 2, 3), y = start_points + proportions / 2, label = paste0(proportions, "%")), size = 4, color = "#313131") +
+  scale_x_discrete(labels = x_axis_labels) +
+  scale_y_continuous(labels = y_axis_labels, breaks = seq(0, 100, 10), limits = c(0, 100)) +
+  labs(x = "Meat consumption categories", y = "Proportion of meat reduction") +
+  theme_classic() +
+  theme(
+    text = element_text(family = "Avenir", size = 12),
+    axis.text.x = element_text(angle = 0, hjust = 0.5),
+    axis.title.x = element_text(margin = margin(t = 12)),
+    legend.position = "none"
+  )
+
+file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/Decomp analysis plot.png"
+# Save plot to file
+ggsave(file_path, plot, width = 8, height = 8, dpi = 600)
+
+
+
+
+
 #####################TABLE 1 - DEMOGRAPHICS#######################
 
 #define age brackets; <10 = 1; 11-17 = 2; 18-40 = 3; 41-59 = 4; >= 60 = 5
