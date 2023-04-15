@@ -177,7 +177,7 @@ ggsave(file_path, plot, width = 10, height = 8, dpi = 300)
 
 
 
-
+#total meat days
 # Create a srvyr object with the survey design
 dat_svy <- as_survey(survey_design)
 
@@ -217,18 +217,7 @@ ggsave(file_path, plot1, width = 10, height = 8, dpi = 300)
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
+#processed meat days
 # Calculate the weighted proportion for each level of MeatDays by SurveyYear
 Processed_days_prop <- dat_svy %>% 
   group_by(SurveyYear) %>% 
@@ -251,7 +240,7 @@ plot2 <- ggplot(Processed_days_prop_long, aes(x = SurveyYear, y = proportion, fi
   geom_col() +
   scale_fill_brewer(palette = "Reds", direction = 1) +
   labs(x = "Survey Year", y = "Proportion", fill = "Processed Days") +
-  scale_x_continuous(breaks = meat_days_prop$SurveyYear, labels = meat_days_prop$SurveyYear) +
+  scale_x_continuous(breaks = Processed_days_prop$SurveyYear, labels = Processed_days_prop$SurveyYear) +
   geom_text(aes(label = paste0(round(proportion*100),"%")), 
             position = position_stack(vjust = 0.5)) +
   theme_classic() +
@@ -266,7 +255,120 @@ ggsave(file_path, plot2, width = 10, height = 8, dpi = 300)
 
 
 
+#red meat days
+# Calculate the weighted proportion for each level of MeatDays by SurveyYear
+Red_days_prop <- dat_svy %>% 
+  group_by(SurveyYear) %>% 
+  summarize(prop_0 = survey_mean(RedDays == 0),
+            prop_1 = survey_mean(RedDays == 1),
+            prop_2 = survey_mean(RedDays == 2),
+            prop_3 = survey_mean(RedDays == 3),
+            prop_4 = survey_mean(RedDays == 4))
 
+# View the results
+Red_days_prop
+# Identify the columns that end in "_se"
+se_cols <- grep("_se$", names(Red_days_prop))
+# Remove the columns that end in "_se"
+Red_days_prop_no_se <- Red_days_prop[, -se_cols]
+# Reshape the data from wide to long format
+Red_days_prop_long <- pivot_longer(Red_days_prop_no_se, cols = -SurveyYear, names_to = "RedDays", values_to = "proportion")
+# Plot the stacked bar plot
+plot3 <- ggplot(Red_days_prop_long, aes(x = SurveyYear, y = proportion, fill = str_remove(RedDays, "prop_"))) + 
+  geom_col() +
+  scale_fill_brewer(palette = "Reds", direction = 1) +
+  labs(x = "Survey Year", y = "Proportion", fill = "Red Days") +
+  scale_x_continuous(breaks = Red_days_prop$SurveyYear, labels = Red_days_prop$SurveyYear) +
+  geom_text(aes(label = paste0(round(proportion*100),"%")), 
+            position = position_stack(vjust = 0.5)) +
+  theme_classic() +
+  theme(text = element_text(family = "Avenir", size = 12))
+plot3
+
+file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/RedDaysProp.png"
+# Save plot to file
+ggsave(file_path, plot3, width = 10, height = 8, dpi = 300)
+
+
+
+
+
+
+
+
+
+
+#white meat days
+# Calculate the weighted proportion for each level of MeatDays by SurveyYear
+white_days_prop <- dat_svy %>% 
+  group_by(SurveyYear) %>% 
+  summarize(prop_0 = survey_mean(WhiteDays == 0),
+            prop_1 = survey_mean(WhiteDays == 1),
+            prop_2 = survey_mean(WhiteDays == 2),
+            prop_3 = survey_mean(WhiteDays == 3),
+            prop_4 = survey_mean(WhiteDays == 4))
+
+# View the results
+white_days_prop
+# Identify the columns that end in "_se"
+se_cols <- grep("_se$", names(white_days_prop))
+# Remove the columns that end in "_se"
+white_days_prop_no_se <- white_days_prop[, -se_cols]
+# Reshape the data from wide to long format
+white_days_prop_long <- pivot_longer(white_days_prop_no_se, cols = -SurveyYear, names_to = "WhiteDays", values_to = "proportion")
+# Plot the stacked bar plot
+plot4 <- ggplot(white_days_prop_long, aes(x = SurveyYear, y = proportion, fill = str_remove(WhiteDays, "prop_"))) + 
+  geom_col() +
+  scale_fill_brewer(palette = "Reds", direction = 1) +
+  labs(x = "Survey Year", y = "Proportion", fill = "White Days") +
+  scale_x_continuous(breaks = white_days_prop$SurveyYear, labels = white_days_prop$SurveyYear) +
+  geom_text(aes(label = paste0(round(proportion*100),"%")), 
+            position = position_stack(vjust = 0.5)) +
+  theme_classic() +
+  theme(text = element_text(family = "Avenir", size = 12))
+plot4
+
+file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/WhiteDaysProp.png"
+# Save plot to file
+ggsave(file_path, plot2, width = 10, height = 8, dpi = 300)
+
+
+
+
+
+
+# Add titles to each plot
+plot1 <- plot1 + ggtitle("Total meat") + theme(plot.title = element_text(hjust = 0.5))
+plot2 <- plot2 + ggtitle("Processed meat") + theme(plot.title = element_text(hjust = 0.5), legend.position = "none")
+plot3 <- plot3 + ggtitle("Red meat") + theme(plot.title = element_text(hjust = 0.5), legend.position = "none")
+plot4 <- plot4 + ggtitle("White meat") + theme(plot.title = element_text(hjust = 0.5), legend.position = "none")
+
+# Remove the x-axis label from plot1 and plot2
+plot1 <- plot1 + xlab(NULL)
+plot2 <- plot2 + xlab(NULL)
+
+# Remove the y-axis label from plot2 and plot4
+plot2 <- plot2 + ylab(NULL)
+plot4 <- plot4 + ylab(NULL)
+
+
+# Extract the legend from plot1
+plot1_legend <- cowplot::get_legend(plot1)
+
+# Remove the legend from the original plot1
+plot1 <- plot1 + theme(legend.position = "none")
+
+# Combine the plots into a single 4-pane plot without the legend
+combined_plot <- grid.arrange(plot1, plot2, plot3, plot4, ncol = 2, nrow = 2)
+
+# Add the legend to the right of the combined plot
+combined_plot <- grid.arrange(combined_plot, plot1_legend, ncol = 2, widths = c(8, 1))
+# Display the combined plot
+combined_plot
+
+
+file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/CombinedDaysProp.png"
+ggsave(file_path, combined_plot, width = 20, height = 16, dpi = 600)
 
 
 
@@ -303,7 +405,7 @@ plot <- ggplot(meat_reduction_data, aes(x = categories, y = proportions, fill = 
   geom_segment(aes(x = 2.6 - 0.6/3, y = 57 + 37, xend = 2.4 + 0.6/3, yend = 57 + 37), linewidth = 0.2) +
   geom_text(aes(x = c(1, 2, 3), y = start_points + proportions / 2, label = paste0(proportions, "%")), size = 4, color = "#313131") +
   scale_x_discrete(labels = x_axis_labels) +
-  scale_y_continuous(labels = y_axis_labels, breaks = seq(0, 100, 10), limits = c(0, 100)) +
+  scale_y_continuous(labels = y_axis_labels, breaks = seq(0, 100, 10), limits = c(0, 100), expand = c(0, 0)) +  # Add expand = c(0, 0) to eliminate the gap
   labs(x = "Meat consumption categories", y = "Proportion of meat reduction") +
   theme_classic() +
   theme(
@@ -312,8 +414,8 @@ plot <- ggplot(meat_reduction_data, aes(x = categories, y = proportions, fill = 
     axis.title.x = element_text(margin = margin(t = 12)),
     legend.position = "none"
   )
-
-file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/Decomp analysis plot.png"
+plot
+file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 2.png"
 # Save plot to file
 ggsave(file_path, plot, width = 8, height = 8, dpi = 600)
 
@@ -352,9 +454,13 @@ survey_design11 <- dat11 %>%
   )
 
 survey_design1 %>%
-  summarise(agex = survey_mean(sumMeatg))
+  summarise(meatx = survey_mean(sumMeatg))
+415/4
 survey_design11 %>%
-  summarise(agex = survey_mean(sumMeatg))
+  summarise(meatx = survey_mean(sumMeatg))
+345/4
+
+(415-345)/4
 
 #count age groups 
 #unweighted Ns
@@ -1452,9 +1558,6 @@ exp(b0+b2.2)
 exp(b0+b2.2+b1+b3.2)
 
 
-
-mean(dat$avgProcessedokaj)
-mean(dat$avgProcessedokajpmd, na.rm = TRUE)
 
 
 
