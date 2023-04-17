@@ -528,27 +528,69 @@ dat.design <-
     fpc = ~fpc
   )
 
+
+
+
+
+# Creates a custom summary function for exponentiated coefficients
+# as well as printing out the 95% confidence interval values
+# (and retains significance indicators)
+exp_summary <- function(model) {
+  # Exponentiate the sum between the intercept and SurveyYearX coefficients
+  exp_diff <- exp(coef(model)["(Intercept)"] + coef(model)[-1])
+  
+  # Exponentiate the confidence intervals
+  conf_int <- confint(model)
+  exp_conf_int <- exp(conf_int)
+  
+  # Calculate the confidence intervals for the differences
+  exp_diff_conf_int <- exp(conf_int["(Intercept)",] + conf_int[-1,])
+  
+  # Create a new summary object
+  exp_summary_obj <- summary(model)
+  
+  # Calculate the z-values and p-values
+  z_values <- coef(model) / exp_summary_obj$coefficients[, "Std. Error"]
+  p_values <- 2 * pnorm(-abs(z_values))
+  
+  # Replace the coefficients and confidence intervals with the exponentiated values
+  exp_summary_obj$coefficients <- rbind(c(exp(coef(model)["(Intercept)"]), exp_summary_obj$coefficients[1, "Std. Error"], exp_conf_int[1,], p_values[1]),
+                                        cbind(exp_diff,
+                                              exp_summary_obj$coefficients[-1, "Std. Error"],
+                                              exp_diff_conf_int,
+                                              p_values[-1]))
+  
+  # Update the column names
+  colnames(exp_summary_obj$coefficients) <- c("Exp(Coef)", "Std. Error", "2.5 %", "97.5 %", "Pr(>|z|)")
+  
+  # Include the significance stars
+  signif.stars <- options("show.signif.stars")
+  if (is.logical(signif.stars) && signif.stars) {
+    exp_summary_obj$coefficients <- cbind(exp_summary_obj$coefficients, 
+                                          exp_summary_obj$coefficients[, "Pr(>|z|)"])
+    colnames(exp_summary_obj$coefficients)[ncol(exp_summary_obj$coefficients)] <- " "
+    exp_summary_obj$coefficients[, " "] <- symnum(exp_summary_obj$coefficients[, "Pr(>|z|)"], 
+                                                  corr = FALSE, na = FALSE,
+                                                  cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
+                                                  symbols = c("***", "**", "*", ".", " "))
+  }
+  
+  return(exp_summary_obj)
+}
+
+
+
 ##MEAT DAYS##
 m1 <- svyglm(MeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(1.184801)
-exp(1.184801-0.077232)
+exp_summary(m1)
 m1 <- svyglm(ProcessedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(0.570189)
-exp(0.570189-0.104735)
+exp_summary(m1)
 m1 <- svyglm(RedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(0.44447)
-exp(0.44447-0.23973)
+exp_summary(m1)
 m1 <- svyglm(WhiteDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(0.350942)
-exp(0.350942+0.099129)
+exp_summary(m1)
 m1 <- svyglm(NoMeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(-0.31476)
-exp(-0.31476+0.28740)
+exp_summary(m1)
 
 
 ##Meat occasions##
