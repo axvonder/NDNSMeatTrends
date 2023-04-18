@@ -24,6 +24,100 @@ dat <- dat[!(dat$DiaryDaysCompleted == 3),]
 ######################SANDBOX####################
 
 
+#create weighted proportion of portion size per eating occasion
+# Create the survey design object
+survey_design <- svydesign(id = ~area, strata = ~astrata5, weights = ~wti, data = dat)
+# Create a new categorical variable based on "gperokajMeat"
+dat$gperokajMeatcat <- cut(dat$gperokajMeat, 
+                           breaks = c(-Inf, 50, 100, 150, Inf), 
+                           labels = c("<50g", "50-100g", "100-150g", ">150g"), 
+                           right = FALSE, 
+                           include.lowest = TRUE)
+# Update the survey design object
+survey_design <- svydesign(id = ~area, strata = ~astrata5, weights = ~wti, data = dat)
+# Convert the categorical variable to a factor
+dat$gperokajMeatcat <- as.factor(dat$gperokajMeatcat)
+# Calculate the weighted proportions for each category, by year
+weighted_proportions_by_year <- svyby(~gperokajMeatcat, ~SurveyYear, survey_design, svymean)
+# Convert the weighted_proportions_by_year to a data frame
+weighted_proportions_by_year_df <- as.data.frame(weighted_proportions_by_year)
+# Remove the standard error columns
+weighted_proportions_no_se <- weighted_proportions_by_year_df %>%
+  select(-starts_with("se."))
+# Convert the data to long format
+long_weighted_proportions <- weighted_proportions_no_se %>%
+  pivot_longer(cols = starts_with("gperokajMeatcat"), 
+               names_to = "Category", 
+               values_to = "Proportion", 
+               names_prefix = "gperokajMeatcat")
+# Remove any rows with missing values
+long_weighted_proportions <- long_weighted_proportions %>% drop_na()
+
+# Create the plot
+plot <- ggplot(long_weighted_proportions, aes(x = SurveyYear, y = Proportion, fill = factor(Category, levels = unique(Category)))) +
+  geom_bar(stat = "identity", position = "stack") +
+  geom_text(aes(label = paste0(round(Proportion*100),"%")), position = position_stack(vjust = 0.5)) +
+  labs(title = NULL, x = "Survey Year", y = "Proportion", fill = "Portion size (g)") +
+  theme_classic() +
+  scale_fill_manual(values = brewer.pal(4, "Reds"), labels = c("<50g", "50-100g", "100-150g", ">150g")) +
+  scale_x_continuous(breaks = unique(long_weighted_proportions$SurveyYear)) +
+  theme(text = element_text(family = "Avenir", size = 12))
+
+plot
+#thinking about combining the bottom two categories since they both contribute so little to the overall proportion
+file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/MeatOccasionsProp.png"
+# Save plot to file
+ggsave(file_path, plot, width = 10, height = 8, dpi = 300)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #create weighted proportion of total meat occasions per day
@@ -80,7 +174,7 @@ ggsave(file_path, plot, width = 10, height = 8, dpi = 300)
 # Create a new categorical variable based on "avgMeatokaj"
 dat$Processedokajcat <- cut(dat$avgProcessedokaj, 
                        breaks = c(-Inf, 0.25, 0.50, 0.75, Inf), 
-                       labels = c("<0.25", "0.25-0.50", "0.50-0.75", ">0.75"), 
+                       labels = c("<1", "1-2", "2-3", ">3"), 
                        right = FALSE, 
                        include.lowest = TRUE)
 #
@@ -106,9 +200,9 @@ long_weighted_proportions <- weighted_proportions_no_se %>%
 plot <- ggplot(long_weighted_proportions, aes(x = SurveyYear, y = Proportion, fill = factor(Category, levels = unique(Category)))) +
   geom_bar(stat = "identity", position = "stack") +
   geom_text(aes(label = paste0(round(Proportion*100),"%")), position = position_stack(vjust = 0.5)) +
-  labs(title = NULL, x = "Survey Year", y = "Proportion", fill = "Meat occasions/day") +
+  labs(title = NULL, x = "Survey Year", y = "Proportion", fill = "Meat occasions/4-day diary period") +
   theme_classic() +
-  scale_fill_manual(values = brewer.pal(4, "Reds"), labels = c("<0.25", "0.25-0.50", "0.50-0.75", ">0.75")) +
+  scale_fill_manual(values = brewer.pal(4, "Reds"), labels = c("<1", "1-2", "2-3", ">3")) +
   scale_x_continuous(breaks = unique(long_weighted_proportions$SurveyYear)) +
   theme(text = element_text(family = "Avenir", size = 12))
 
@@ -508,15 +602,6 @@ survey_design11 %>%
 #############################TABLE 2 - MAIN ANALYSIS ###################
 #make survey year numeric
 dat$SurveyYear <- as.factor(dat$SurveyYear)
-dat$SurveyYear <- as.numeric(dat$SurveyYear)
-dat$Sex <- as.factor(dat$Sex)
-dat$Sex <- as.numeric(dat$Sex)
-dat$eqv <- as.factor(dat$eqv)
-dat$eqv <- as.numeric(dat$eqv)
-dat$Age <- as.factor(dat$Age)
-dat$Age <- as.numeric(dat$Age)
-dat$AgeG <- as.factor(dat$AgeG)
-dat$AgeG <- as.numeric(dat$AgeG)
 #specify survey weighting structure for GLM
 dat$fpc <- 15332
 dat.design <-
@@ -582,6 +667,7 @@ exp_summary <- function(model) {
 
 ##MEAT DAYS##
 m1 <- svyglm(MeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
+summary(m1)
 exp_summary(m1)
 m1 <- svyglm(ProcessedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
 exp_summary(m1)
@@ -595,44 +681,26 @@ exp_summary(m1)
 
 ##Meat occasions##
 m1 <- svyglm(avgMeatokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(0.21369)
-exp(0.21369-0.08928)
+exp_summary(m1)
 m1 <- svyglm(avgProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(-0.6168960)
-exp(-0.6168960-0.0859576)
+exp_summary(m1)
 m1 <- svyglm(avgRedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(-0.82162)
-exp(-0.82162-0.27378)
+exp_summary(m1)
 m1 <- svyglm(avgWhiteokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(-0.905580)
-exp(-0.905580+0.110190)
+exp_summary(m1)
 
 
 ##g per occasion##
 m1 <- svyglm(gperokajMeat ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(4.4515255)
-exp(4.4515255-0.1192086)
+exp_summary(m1)
 m1 <- svyglm(gperokajProcessed ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(4.146524)
-exp(4.146524-0.183016)
+exp_summary(m1)
 m1 <- svyglm(gperokajRed ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(4.49681)
-exp(4.49681-0.25282)
+exp_summary(m1)
 m1 <- svyglm(gperokajWhite ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(4.438522)
-exp(4.438522-0.059742)
+exp_summary(m1)
 m1 <- svyglm(okajTotalGrams ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(6.150279)
-exp(6.150279+0.096986)
+exp_summary(m1)
 
 
 
@@ -664,88 +732,52 @@ dat.design.y11 <-
 #BREAKFAST
 ##Meat occasions##
 m1 <- svyglm(BMeatokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(-1.27281)
-exp(-1.27281-0.05088)
+exp_summary(m1)
 m1 <- svyglm(BProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(-1.490848)
-exp(-1.490848-0.010233)
+exp_summary(m1)
 m1 <- svyglm(BRedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(-3.1706)
-exp(-3.1706-0.3312)
+exp_summary(m1)
 m1 <- svyglm(BWhiteokaj ~ SurveyYear, family=poisson(link = "log"), dat.design.y1)
-summary(m1) #exponentiate
-exp(-3.48036)
-exp(-3.48036-0.17600)
+exp_summary(m1)
 
 
 ##g per occasion##
 m1 <- svyglm(BgperokajMeat ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(4.29765)
-exp(4.29765-0.09692)
+exp_summary(m1)
 m1 <- svyglm(BgperokajProcessed ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(4.28983)
-exp(4.28983-0.10131)
+exp_summary(m1)
 m1 <- svyglm(BgperokajRed ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(3.99114)
-exp(3.99114-0.49028)
+exp_summary(m1)
 m1 <- svyglm(BgperokajWhite ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(3.59971)
-exp(3.59971+0.60952)
+exp_summary(m1)
 m1 <- svyglm(BokajGrams ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(6.09873)
-exp(6.09873+0.08560)
+exp_summary(m1)
 
 
 
 #LUNCH
 ##Meat occasions##
 m1 <- svyglm(LMeatokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(0.60394)
-exp(0.60394-0.08771)
+exp_summary(m1)
 m1 <- svyglm(LProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(0.01739)
-exp(0.01739-0.19697)
+exp_summary(m1)
 m1 <- svyglm(LRedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(-0.70918)
-exp(-0.70918-0.26963)
+exp_summary(m1)
 m1 <- svyglm(LWhiteokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(-0.647568)
-exp(-0.647568+0.190062)
+exp_summary(m1)
 
 
 ##g per occasion##
 m1 <- svyglm(LgperokajMeat ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(4.182490)
-exp(4.182490-0.118474)
+exp_summary(m1)
 m1 <- svyglm(LgperokajProcessed ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(4.02694)
-exp(4.02694-0.16758)
+exp_summary(m1)
 m1 <- svyglm(LgperokajRed ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(4.17327)
-exp(4.17327-0.17812)
+exp_summary(m1)
 m1 <- svyglm(LgperokajWhite ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(4.102199)
-exp(4.102199+0.035625)
+exp_summary(m1)
 m1 <- svyglm(LokajGrams ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(6.231770)
-exp(6.231770+0.025879)
+exp_summary(m1)
 
 
 
@@ -753,44 +785,26 @@ exp(6.231770+0.025879)
 #DINNER
 ##Meat occasions##
 m1 <- svyglm(DMeatokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(0.895225)
-exp(0.895225-0.083727)
+exp_summary(m1)
 m1 <- svyglm(DProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(-0.27349)
-exp(-0.27349+0.02917)
+exp_summary(m1)
 m1 <- svyglm(DRedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(0.07869)
-exp(0.07869-0.26195)
+exp_summary(m1)
 m1 <- svyglm(DWhiteokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(-0.1018312)
-exp(-0.1018312+0.1016680)
+exp_summary(m1)
 
 
 ##g per occasion##
 m1 <- svyglm(DgperokajMeat ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(4.62109)
-exp(4.62109-0.13262)
+exp_summary(m1)
 m1 <- svyglm(DgperokajProcessed ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(4.304573)
-exp(4.304573-0.227260)
+exp_summary(m1)
 m1 <- svyglm(DgperokajRed ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(4.60369)
-exp(4.60369-0.27837)
+exp_summary(m1)
 m1 <- svyglm(DgperokajWhite ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(4.579926)
-exp(4.579926-0.067861)
+exp_summary(m1)
 m1 <- svyglm(DokajGrams ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp(6.377098)
-exp(6.377098+0.027697)
+exp_summary(m1)
 
 
 
@@ -802,6 +816,7 @@ m1 <- svyglm(MeatDays ~ SurveyYear + Sex +
                SurveyYear*Sex,
              family=poisson(link = "log"), dat.design)
 summary(m1) #exponentiate
+exp_summary(m1)
 #men
 exp(1.2067741)
 exp(1.2067741-0.0643641)
@@ -1642,6 +1657,26 @@ dm1+om1+pm1
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #processed meat
 #convert occasions per day variable to occasions per MEAT day (to add up for decomp)
 zo1 <- 0.5396168
@@ -2217,22 +2252,4 @@ ggplot(dat, aes(x=gperokajWhite)) + geom_histogram(binwidth=.5) #excluded 3,232
 
 
 
-#################KEEP JUST IN CASE NEED AGAIN? NON WEIGHTED DEMOGRAPHICS###############
 
-#age (30.06 yr)
-mean(dat$Age)
-#define age brackets; <10 = 1; 11-17 = 2; 18-40 = 3; 41-59 = 4; >= 60 = 5
-dat <- dat %>%
-  mutate(AgeG = case_when(
-    Age <= 10 ~ 1,
-    Age >= 11 & Age <= 17 ~ 2,
-    Age >= 18 & Age <= 40 ~ 3,
-    Age >= 41 & Age <= 59 ~ 4,
-    Age >= 60 ~ 5,
-    TRUE ~ 99
-  ))
-table(dat$AgeG)
-#gender (M = 7072, F = 8260)
-table(dat$Sex)
-#income breakdown (1= 4,299, 2= 4,285, 3= 4,258, 12,842 total; 1,861 missing)
-table(dat$eqv)
