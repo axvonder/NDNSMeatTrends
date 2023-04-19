@@ -473,6 +473,81 @@ ggsave(file_path, combined_plot, width = 20, height = 16, dpi = 600)
 
 ################Decomp plots#########################
 
+# Data
+meat_data <- data.frame(
+  Meat = factor(c("Total Meat", "Processed Meat", "Red Meat", "White Meat"),
+                levels = c("Total Meat", "Processed Meat", "Red Meat", "White Meat")),
+  Total_Delta = c(-79.93, -32.18, -64.61, 7.08),
+  Days_Delta = c(-29.61, -12.53, -29.41, 13.92),
+  Occasions_Delta = c(-4.62, 2.25, -4.18, 1.55),
+  Portion_Size_Delta = c(-45.70, -21.90, -31.02, -8.39)
+)
+
+# Melt data for ggplot
+melted_data <- reshape2::melt(meat_data, id.vars = "Meat")
+
+# Bar plot
+bar_plot <- ggplot(melted_data, aes(x = Meat, y = value, fill = variable)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.5) +
+  scale_fill_manual(values = c("Total_Delta" = "black", "Days_Delta" = "#CB181D", "Occasions_Delta" = "#FB6A4A", "Portion_Size_Delta" = "#FCBBA1"),
+                    labels = c("Total_Delta" = "Total ∆",
+                               "Days_Delta" = "∆ days",
+                               "Occasions_Delta" = "∆ occasions",
+                               "Portion_Size_Delta" = "∆ portion size")) +
+  labs(x = "Meat categories", y = "Change in meat consumption (g/capita/day)", fill = "Consumption categories") +
+  theme_classic() +
+  theme(text = element_text(family = "Avenir", size = 12)) 
+
+# Define the y-axis limits
+y_limits <- c(-85, 20)
+
+# Update plot with modified y-axis and a dashed line at y=0
+bar_plot <- bar_plot +
+  scale_y_continuous(limits = y_limits, expand = c(0, 0), 
+                     breaks = seq(-80, 20, by = 20)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  geom_text(aes(label = round(value), y = value, group = variable, vjust = ifelse(value >= 0, -0.5, 1.5)), 
+            position = position_dodge(width = 0.5))
+
+# Display plot
+print(bar_plot)
+
+file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 2.png"
+ggsave(file_path, bar_plot, width = 10, height = 8, dpi = 600)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #WORKS BUT NEEDS SOME EDITS
 
 # Define data
@@ -1797,6 +1872,28 @@ om1*(dm1+om1+pm1)/(dm1+om1)
 
 ##########################plots playings#########################
 
+
+
+
+
+
+# Define the color palette
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+# Create a data frame with the colors and their corresponding labels
+palette_df <- data.frame(color = cbPalette, label = 1:length(cbPalette))
+
+# Generate the bar plot
+ggplot(palette_df, aes(x = factor(label), y = 1, fill = color)) +
+  geom_bar(stat = "identity", width = 1) +
+  scale_fill_identity() +
+  theme_void() +
+  theme(legend.position = "none") +
+  coord_fixed(ratio = 0.2)
+
+
+
+
 #specify survey weighting structure for GLM
 dat$fpc <- 15332
 dat.design <-
@@ -1827,7 +1924,7 @@ predictions <- data.frame(
 )
 
 # Create a custom color palette using the darker colors from the "PuBuGn" palette
-color_palette <- c("#FDAE61", "#ABD9E9", "#D53E4F", "#41AB5D") #order: processed (orange), white (blue), red (red), no meat (green)
+color_palette <- c("#E69F00", "#0072B2", "#D55E00", "#009E73") #order: processed (orange), white (blue), red (red), no meat (green)
 
 # Create a custom factor level order based on the correct order
 predictions$Category <- factor(predictions$Category, levels = c("ProcessedDays", "WhiteDays", "RedDays", "NoMeatDays"))
@@ -1847,6 +1944,27 @@ plot1 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Cate
 
 # Print the plot
 print(plot1)
+
+
+# Create a combined plot with ggplot2 using the custom color palette, scatter points, and connected lines
+plot1 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
+  geom_point(size = 1) +
+  geom_line(aes(linetype = "solid")) +
+  geom_smooth(method = "glm", formula = 'y ~ x', se = FALSE, aes(linetype = "dotted", group = Category)) +
+  scale_color_manual(values = color_palette) +
+  scale_linetype_manual(name = "Line Type",
+                        values = c("solid" = "solid", "dotted" = "dotted"),
+                        labels = c("solid" = "Actual data", "dotted" = "2008-2019 trend")) +
+  labs(x = "Survey Year", y = "Number of days (avg. across 4-day period)", color = "Meat category") +
+  theme_classic() +
+  theme(text = element_text(family = "Avenir", size = 12)) +
+  guides(linetype = guide_legend(override.aes = list(color = "black")))
+
+
+# Print the plot
+print(plot1)
+
+
 
 ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Days plot.png", plot1, width = 6, height = 6)
 
@@ -1868,7 +1986,7 @@ predictions <- data.frame(
 )
 
 # Create a custom color palette using the darker colors from the "PuBuGn" palette
-color_palette <- c("#FDAE61", "#ABD9E9", "#D53E4F") #order: processed (orange), white (blue), red (red)
+color_palette <- c("#E69F00", "#0072B2", "#D55E00") #order: processed (orange), white (blue), red (red)
 
 # Create a custom factor level order based on the correct order
 predictions$Category <- factor(predictions$Category, levels = c("avgProcessedokaj", "avgWhiteokaj", "avgRedokaj"))
@@ -1880,7 +1998,7 @@ levels(predictions$Category) <- c("Processed", "White", "Red")
 plot2 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedOccasions, color = Category, group = Category)) +
   geom_point(size = 1) +
   geom_line() +
-  geom_smooth(method = "glm", se = FALSE, linetype = "dashed", aes(group = Category)) + #this adds the fitted line
+  geom_smooth(method = "glm", se = FALSE, linetype = "dotted", aes(group = Category)) + #this adds the fitted line
   scale_color_manual(values = color_palette) +
   labs(x = "Survey Year", y = "Number of meat-containing occasions/day", color = "Meat category") +
   theme_classic() +
@@ -1911,7 +2029,7 @@ predictions <- data.frame(
 )
 
 # Create a custom color palette using the darker colors from the "PuBuGn" palette
-color_palette <- c("#ABD9E9", "#D53E4F", "#FDAE61") #order: white (blue), red (red), processed (orange)
+color_palette <- c("#0072B2", "#D55E00", "#E69F00") #order: white (blue), red (red), processed (orange)
 
 # Create a custom factor level order based on the correct order
 predictions$Category <- factor(predictions$Category, levels = c("gperokajWhite", "gperokajRed", "gperokajProcessed"))
@@ -1923,7 +2041,7 @@ levels(predictions$Category) <- c("White", "Red", "Processed")
 plot3 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedPortion, color = Category, group = Category)) +
   geom_point(size = 1) +
   geom_line() +
-  geom_smooth(method = "glm", se = FALSE, linetype = "dashed", aes(group = Category)) + #this adds the fitted line
+  geom_smooth(method = "glm", se = FALSE, linetype = "dotted", aes(group = Category)) + #this adds the fitted line
   scale_color_manual(values = color_palette) +
   labs(x = "Survey Year", y = "Portion size (g)/meat-containing occasion", color = "Meat category") +
   theme_classic() +
