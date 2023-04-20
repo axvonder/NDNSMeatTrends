@@ -312,55 +312,6 @@ dat <- dat %>%
   mutate(sumRedg = sum(Redgperokaj)) %>%
   mutate(sumWhiteg = sum(Whitegperokaj)) %>%
   mutate(sumMeatg = sum(Meatgperokaj))
-#split data real quick to form 'occasions per meat day' variables
-ph <- dat %>%
-  #select only meat-containing days
-  filter('1' %in% anyMeat) %>%
-  #group
-  group_by(seriali, DayNo) %>%
-  #Sorting by ID and Mealtime
-  arrange(seriali, DayNo, MealTime) %>%
-  #count observations within group (specified above with group_by)
-  mutate(okajMeatperMeatday = cumsum(okajContainMeat)) %>%
-  # max value per day
-  mutate(okajMeatperMeatday = max(okajMeatperday))
-dat <- merge.data.frame(ph, dat, all = TRUE)
-ph <- dat %>%
-  #select only meat-containing days
-  filter('1' %in% anyProcessed) %>%
-  #group
-  group_by(seriali, DayNo) %>%
-  #Sorting by ID and Mealtime
-  arrange(seriali, DayNo, MealTime) %>%
-  #count observations within group (specified above with group_by)
-  mutate(okajProcessedperProcessedday = cumsum(okajContainProcessed)) %>%
-  # max value per day
-  mutate(okajProcessedperProcessedday = max(okajProcessedperProcessedday))
-dat <- merge.data.frame(ph, dat, all = TRUE)
-ph <- dat %>%
-  #select only meat-containing days
-  filter('1' %in% anyRed) %>%
-  #group
-  group_by(seriali, DayNo) %>%
-  #Sorting by ID and Mealtime
-  arrange(seriali, DayNo, MealTime) %>%
-  #count observations within group (specified above with group_by)
-  mutate(okajRedperRedday = cumsum(okajContainRed)) %>%
-  # max value per day
-  mutate(okajRedperRedday = max(okajRedperRedday))
-dat <- merge.data.frame(ph, dat, all = TRUE)
-ph <- dat %>%
-  #select only meat-containing days
-  filter('1' %in% anyWhite) %>%
-  #group
-  group_by(seriali, DayNo) %>%
-  #Sorting by ID and Mealtime
-  arrange(seriali, DayNo, MealTime) %>%
-  #count observations within group (specified above with group_by)
-  mutate(okajWhiteperWhiteday = cumsum(okajContainWhite)) %>%
-  # max value per day
-  mutate(okajWhiteperWhiteday = max(okajWhiteperWhiteday))
-dat <- merge.data.frame(ph, dat, all = TRUE)
 #create variable for number of meat-eating meal blocks per day (breakfast, lunch, dinner)
 #breakfast
 ph <- dat %>% 
@@ -376,6 +327,7 @@ ph <- dat %>%
   mutate(BWhiteokaj = sum(okajContainWhite)) %>%
   mutate(BMeatokaj = sum(okajContainMeat)) %>%
   mutate(BNoMeatokaj = sum(okajContainNoMeat)) %>%
+  mutate(Btotokaj = sum(new_meal)) %>%
   mutate(BsumProcessedg = sum(Processedgperokaj)) %>%
   mutate(BsumRedg = sum(Redgperokaj)) %>%
   mutate(BsumWhiteg = sum(Whitegperokaj)) %>%
@@ -396,6 +348,7 @@ ph <- dat %>%
   mutate(LWhiteokaj = sum(okajContainWhite)) %>%
   mutate(LMeatokaj = sum(okajContainMeat)) %>%
   mutate(LNoMeatokaj = sum(okajContainNoMeat)) %>%
+  mutate(Ltotokaj = sum(new_meal)) %>%
   mutate(LsumProcessedg = sum(Processedgperokaj)) %>%
   mutate(LsumRedg = sum(Redgperokaj)) %>%
   mutate(LsumWhiteg = sum(Whitegperokaj)) %>%
@@ -416,6 +369,7 @@ ph <- dat %>%
   mutate(DWhiteokaj = sum(okajContainWhite)) %>%
   mutate(DMeatokaj = sum(okajContainMeat)) %>%
   mutate(DNoMeatokaj = sum(okajContainNoMeat)) %>%
+  mutate(Dtotokaj = sum(new_meal)) %>%
   mutate(DsumProcessedg = sum(Processedgperokaj)) %>%
   mutate(DsumRedg = sum(Redgperokaj)) %>%
   mutate(DsumWhiteg = sum(Whitegperokaj)) %>%
@@ -434,11 +388,7 @@ ph <- dat %>%
   mutate(totRedokaj = sum(okajRedperday)) %>%
   mutate(totWhiteokaj = sum(okajWhiteperday)) %>%
   mutate(totMeatokaj = sum(okajMeatperday)) %>%
-  mutate(totNoMeatokaj = sum(okajNoMeatperday)) %>%
-  mutate(totMeatokajpmd = sum(okajMeatperMeatday)) %>%
-  mutate(totProcessedokajpmd = sum(okajProcessedperProcessedday)) %>%
-  mutate(totRedokajpmd = sum(okajRedperRedday)) %>%
-  mutate(totWhiteokajpmd = sum(okajWhiteperWhiteday))
+  mutate(totNoMeatokaj = sum(okajNoMeatperday))
 dat <- merge.data.frame(ph, dat, all = TRUE)
 #create variables for meal block portion sizes
 #fill in the NAs with surrounding data (for the B/L/D variables and the totalokaj variable)
@@ -452,14 +402,14 @@ dat <- dat %>%
        LsumRedg, LsumWhiteg, LsumMeatg, LokajGrams, DProcessedokaj, DProcessedokaj, DRedokaj,
        DWhiteokaj, DMeatokaj, DNoMeatokaj, DsumProcessedg, DsumRedg, DsumWhiteg, DokajGrams,
        DsumMeatg, totProcessedokaj, totRedokaj, totWhiteokaj, totMeatokaj, totNoMeatokaj,
-       totMeatokajpmd, totProcessedokajpmd, totRedokajpmd, totWhiteokajpmd) %>%
+       Btotokaj, Ltotokaj, Dtotokaj) %>%
   fill(BProcessedokaj, BProcessedokaj, BRedokaj, BWhiteokaj, BMeatokaj, BokajGrams,
        BNoMeatokaj, BsumProcessedg, BsumRedg, BsumWhiteg, BsumMeatg, LProcessedokaj,
        LProcessedokaj, LRedokaj, LWhiteokaj, LMeatokaj, LNoMeatokaj, LsumProcessedg,
        LsumRedg, LsumWhiteg, LsumMeatg, LokajGrams, DProcessedokaj, DProcessedokaj, DRedokaj,
        DWhiteokaj, DMeatokaj, DNoMeatokaj, DsumProcessedg, DsumRedg, DsumWhiteg, DokajGrams,
        DsumMeatg, totProcessedokaj, totRedokaj, totWhiteokaj, totMeatokaj, totNoMeatokaj,
-       totMeatokajpmd, totProcessedokajpmd, totRedokajpmd, totWhiteokajpmd,
+       Btotokaj, Ltotokaj, Dtotokaj,
        .direction = "up")
 #only 1 row per participant
 dat <- dat %>%
@@ -471,11 +421,7 @@ dat <- dat %>%
   mutate(avgRedokaj = totRedokaj/DiaryDaysCompleted) %>%
   mutate(avgWhiteokaj = totWhiteokaj/DiaryDaysCompleted) %>%
   mutate(avgMeatokaj = totMeatokaj/DiaryDaysCompleted) %>%
-  mutate(avgNoMeatokaj = totNoMeatokaj/DiaryDaysCompleted) %>%
-  mutate(avgMeatokajpmd = totMeatokajpmd/MeatDays) %>%
-  mutate(avgProcessedokajpmd = totProcessedokajpmd/ProcessedDays) %>%
-  mutate(avgRedokajpmd = totRedokajpmd/RedDays) %>%
-  mutate(avgWhiteokajpmd = totWhiteokajpmd/WhiteDays)
+  mutate(avgNoMeatokaj = totNoMeatokaj/DiaryDaysCompleted)
 #create variable for avg (across all days) g per meat category per corresponding meat occasion
 dat <- dat %>%
   mutate(gperokajProcessed = (sumProcessedg/totProcessedokaj)) %>%
@@ -523,8 +469,7 @@ final <- dat[ , which(names(dat) %in% c("seriali", "SurveyYear", "Sex", "Country
                                         "LgperokajMeat", "DgperokajProcessed", "DgperokajRed",
                                         "DgperokajWhite", "DgperokajMeat",
                                         "BokajGrams", "LokajGrams", "DokajGrams",
-                                        "avgMeatokajpmd", "avgProcessedokajpmd",
-                                        "avgRedokajpmd", "avgWhiteokajpmd"))]
+                                        "Btotokaj", "Ltotokaj", "Dtotokaj"))]
 #write data to dataset
 write.csv(final,"/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data/final.csv", row.names = F)
 
