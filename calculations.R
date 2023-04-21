@@ -48,7 +48,8 @@ dat$DWhiteokajperc <- dat$DWhiteokaj/dat$Dtotokaj
 #set survey designs
 
 #make survey year numeric
-dat$SurveyYear <- as.factor(dat$SurveyYear)
+dat$SurveyYear <- as.factor(dat$SurveyYear)#run for regression analyses
+dat$SurveyYear <- as.numeric(dat$SurveyYear)#run for plots
 
 #specify survey weighting structure for GLM
 dat$fpc <- 15332
@@ -1564,6 +1565,223 @@ print(bar_plot)
 file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 2.png"
 ggsave(file_path, bar_plot, width = 10, height = 8, dpi = 600)
 
+###############FIGURE 3#################################
+
+#total meat days
+#set the weighting structure a srvyr object with the survey design
+dat_svy <- as_survey(survey_design)
+#create categorical variable for each level of MeatDays by SurveyYear
+meat_days_prop <- dat_svy %>% 
+  group_by(SurveyYear) %>% 
+  summarize(prop_0 = survey_mean(MeatDays == 0),
+            prop_1 = survey_mean(MeatDays == 1),
+            prop_2 = survey_mean(MeatDays == 2),
+            prop_3 = survey_mean(MeatDays == 3),
+            prop_4 = survey_mean(MeatDays == 4))
+meat_days_prop
+#subset the columns that end in "_se"
+se_cols <- grep("_se$", names(meat_days_prop))
+#Remove the columns that end in "_se"
+meat_days_prop_no_se <- meat_days_prop[, -se_cols]
+#transform  data from wide to long format
+meat_days_prop_long <- pivot_longer(meat_days_prop_no_se, cols = -SurveyYear, names_to = "MeatDays", values_to = "proportion")
+#create stacked bar plot
+plot1 <- ggplot(meat_days_prop_long, aes(x = SurveyYear, y = proportion, fill = str_remove(MeatDays, "prop_"))) + 
+  geom_col() +
+  scale_fill_brewer(palette = "Reds", direction = 1) +
+  labs(x = "Survey Year", y = "Proportion", fill = "Meat Days") +
+  scale_x_continuous(breaks = meat_days_prop$SurveyYear, labels = meat_days_prop$SurveyYear) +
+  geom_text(aes(label = paste0(round(proportion*100),"%")), 
+            position = position_stack(vjust = 0.5)) +
+  theme_classic() +
+  theme(text = element_text(family = "Avenir", size = 12))
+plot1
+file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/MeatDaysProp.png"
+ggsave(file_path, plot1, width = 10, height = 8, dpi = 300)
+
+#processed meat days
+#create categorical variable for each level of Processed by SurveyYear
+Processed_days_prop <- dat_svy %>% 
+  group_by(SurveyYear) %>% 
+  summarize(prop_0 = survey_mean(ProcessedDays == 0),
+            prop_1 = survey_mean(ProcessedDays == 1),
+            prop_2 = survey_mean(ProcessedDays == 2),
+            prop_3 = survey_mean(ProcessedDays == 3),
+            prop_4 = survey_mean(ProcessedDays == 4))
+Processed_days_prop
+#subset the columns that end in "_se"
+se_cols <- grep("_se$", names(Processed_days_prop))
+#remove the columns that end in "_se"
+Processed_days_prop_no_se <- Processed_days_prop[, -se_cols]
+#transform data from wide to long format
+Processed_days_prop_long <- pivot_longer(Processed_days_prop_no_se, cols = -SurveyYear, names_to = "ProcessedDays", values_to = "proportion")
+#stacked bar plot
+plot2 <- ggplot(Processed_days_prop_long, aes(x = SurveyYear, y = proportion, fill = str_remove(ProcessedDays, "prop_"))) + 
+  geom_col() +
+  scale_fill_brewer(palette = "Reds", direction = 1) +
+  labs(x = "Survey Year", y = "Proportion", fill = "Processed Days") +
+  scale_x_continuous(breaks = Processed_days_prop$SurveyYear, labels = Processed_days_prop$SurveyYear) +
+  geom_text(aes(label = paste0(round(proportion*100),"%")), 
+            position = position_stack(vjust = 0.5)) +
+  theme_classic() +
+  theme(text = element_text(family = "Avenir", size = 12))
+plot2
+file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/ProcessedDaysProp.png"
+ggsave(file_path, plot2, width = 10, height = 8, dpi = 300)
+
+#red meat days
+#create categorical variable for each level of RedDays by SurveyYear
+Red_days_prop <- dat_svy %>% 
+  group_by(SurveyYear) %>% 
+  summarize(prop_0 = survey_mean(RedDays == 0),
+            prop_1 = survey_mean(RedDays == 1),
+            prop_2 = survey_mean(RedDays == 2),
+            prop_3 = survey_mean(RedDays == 3),
+            prop_4 = survey_mean(RedDays == 4))
+Red_days_prop
+#subset the columns that end in "_se"
+se_cols <- grep("_se$", names(Red_days_prop))
+#remove the columns that end in "_se"
+Red_days_prop_no_se <- Red_days_prop[, -se_cols]
+#transform the data from wide to long format
+Red_days_prop_long <- pivot_longer(Red_days_prop_no_se, cols = -SurveyYear, names_to = "RedDays", values_to = "proportion")
+#stacked bar plot
+plot3 <- ggplot(Red_days_prop_long, aes(x = SurveyYear, y = proportion, fill = str_remove(RedDays, "prop_"))) + 
+  geom_col() +
+  scale_fill_brewer(palette = "Reds", direction = 1) +
+  labs(x = "Survey Year", y = "Proportion", fill = "Red Days") +
+  scale_x_continuous(breaks = Red_days_prop$SurveyYear, labels = Red_days_prop$SurveyYear) +
+  geom_text(aes(label = paste0(round(proportion*100),"%")), 
+            position = position_stack(vjust = 0.5)) +
+  theme_classic() +
+  theme(text = element_text(family = "Avenir", size = 12))
+plot3
+file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/RedDaysProp.png"
+ggsave(file_path, plot3, width = 10, height = 8, dpi = 300)
+
+#white meat days
+#create categorical variable for each level of WhiteDays by SurveyYear
+white_days_prop <- dat_svy %>% 
+  group_by(SurveyYear) %>% 
+  summarize(prop_0 = survey_mean(WhiteDays == 0),
+            prop_1 = survey_mean(WhiteDays == 1),
+            prop_2 = survey_mean(WhiteDays == 2),
+            prop_3 = survey_mean(WhiteDays == 3),
+            prop_4 = survey_mean(WhiteDays == 4))
+white_days_prop
+#subset the columns that end in "_se"
+se_cols <- grep("_se$", names(white_days_prop))
+#remove the columns that end in "_se"
+white_days_prop_no_se <- white_days_prop[, -se_cols]
+#transform the data from wide to long format
+white_days_prop_long <- pivot_longer(white_days_prop_no_se, cols = -SurveyYear, names_to = "WhiteDays", values_to = "proportion")
+#stacked bar plot
+plot4 <- ggplot(white_days_prop_long, aes(x = SurveyYear, y = proportion, fill = str_remove(WhiteDays, "prop_"))) + 
+  geom_col() +
+  scale_fill_brewer(palette = "Reds", direction = 1) +
+  labs(x = "Survey Year", y = "Proportion", fill = "White Days") +
+  scale_x_continuous(breaks = white_days_prop$SurveyYear, labels = white_days_prop$SurveyYear) +
+  geom_text(aes(label = paste0(round(proportion*100),"%")), 
+            position = position_stack(vjust = 0.5)) +
+  theme_classic() +
+  theme(text = element_text(family = "Avenir", size = 12))
+plot4
+file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/WhiteDaysProp.png"
+ggsave(file_path, plot2, width = 10, height = 8, dpi = 300)
+
+
+#plot titles
+plot1 <- plot1 + ggtitle("Total meat") + theme(plot.title = element_text(hjust = 0.5))
+plot2 <- plot2 + ggtitle("Processed meat") + theme(plot.title = element_text(hjust = 0.5), legend.position = "none")
+plot3 <- plot3 + ggtitle("Red meat") + theme(plot.title = element_text(hjust = 0.5), legend.position = "none")
+plot4 <- plot4 + ggtitle("White meat") + theme(plot.title = element_text(hjust = 0.5), legend.position = "none")
+#remove the x-axis label from plot1 and plot2
+plot1 <- plot1 + xlab(NULL)
+plot2 <- plot2 + xlab(NULL)
+#remove the y-axis label from plot2 and plot4
+plot2 <- plot2 + ylab(NULL)
+plot4 <- plot4 + ylab(NULL)
+#take legend from plot1
+plot1_legend <- cowplot::get_legend(plot1)
+#remove the legend from the original plot1
+plot1 <- plot1 + theme(legend.position = "none")
+#combine the plots into a single 4-pane plot without the legend (I'll add it later)
+combined_plot <- grid.arrange(plot1, plot2, plot3, plot4, ncol = 2, nrow = 2)
+#add the legend to the right of the combined plot
+combined_plot <- grid.arrange(combined_plot, plot1_legend, ncol = 2, widths = c(8, 1))
+combined_plot
+file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/CombinedDaysProp.png"
+ggsave(file_path, combined_plot, width = 20, height = 16, dpi = 600)
+
+
+
+
+
+
+
+
+
+
+
+#####################DISTRIBUTION TESTS###########################
+ggplot(dat, aes(x=MeatDays)) + geom_histogram(binwidth=.5)
+ggplot(dat, aes(x=ProcessedDays)) + geom_histogram(binwidth=.5)
+ggplot(dat, aes(x=RedDays)) + geom_histogram(binwidth=.5)
+ggplot(dat, aes(x=WhiteDays)) + geom_histogram(binwidth=.5)
+ggplot(dat, aes(x=NoMeatDays)) + geom_histogram(binwidth=.5)
+
+ggplot(dat, aes(x=avgMeatokaj)) + geom_histogram(binwidth=.5)
+ggplot(dat, aes(x=avgProcessedokaj)) + geom_histogram(binwidth=.5)
+ggplot(dat, aes(x=avgRedokaj)) + geom_histogram(binwidth=.5)
+ggplot(dat, aes(x=avgWhiteokaj)) + geom_histogram(binwidth=.5)
+ggplot(dat, aes(x=avgNoMeatokaj)) + geom_histogram(binwidth=.5)
+
+ggplot(dat, aes(x=gperokajMeat)) + geom_histogram(binwidth=.5) #excluded 629
+ggplot(dat, aes(x=gperokajProcessed)) + geom_histogram(binwidth=.5) #excluded 2,967
+ggplot(dat, aes(x=gperokajRed)) + geom_histogram(binwidth=.5) #excluded 4,095
+ggplot(dat, aes(x=gperokajWhite)) + geom_histogram(binwidth=.5) #excluded 3,232
+15332-629
+15332-2967
+15332-4095
+15332-3232
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1576,104 +1794,6 @@ ggsave(file_path, bar_plot, width = 10, height = 8, dpi = 600)
 
 ######################SANDBOX####################
 
-
-#create weighted proportion of portion size per eating occasion
-# Create a new categorical variable based on "gperokajMeat"
-dat$gperokajMeatcat <- cut(dat$gperokajMeat, 
-                           breaks = c(-Inf, 50, 100, 150, Inf), 
-                           labels = c("<50g", "50-100g", "100-150g", ">150g"), 
-                           right = FALSE, 
-                           include.lowest = TRUE)
-# Update the survey design object
-survey_design <- svydesign(id = ~area, strata = ~astrata5, weights = ~wti, data = dat)
-# Convert the categorical variable to a factor
-dat$gperokajMeatcat <- as.factor(dat$gperokajMeatcat)
-# Calculate the weighted proportions for each category, by year
-weighted_proportions_by_year <- svyby(~gperokajMeatcat, ~SurveyYear, survey_design, svymean)
-# Convert the weighted_proportions_by_year to a data frame
-weighted_proportions_by_year_df <- as.data.frame(weighted_proportions_by_year)
-# Remove the standard error columns
-weighted_proportions_no_se <- weighted_proportions_by_year_df %>%
-  select(-starts_with("se."))
-# Convert the data to long format
-long_weighted_proportions <- weighted_proportions_no_se %>%
-  pivot_longer(cols = starts_with("gperokajMeatcat"), 
-               names_to = "Category", 
-               values_to = "Proportion", 
-               names_prefix = "gperokajMeatcat")
-# Remove any rows with missing values
-long_weighted_proportions <- long_weighted_proportions %>% drop_na()
-
-# Create the plot
-plot <- ggplot(long_weighted_proportions, aes(x = SurveyYear, y = Proportion, fill = factor(Category, levels = unique(Category)))) +
-  geom_bar(stat = "identity", position = "stack") +
-  geom_text(aes(label = paste0(round(Proportion*100),"%")), position = position_stack(vjust = 0.5)) +
-  labs(title = NULL, x = "Survey Year", y = "Proportion", fill = "Portion size (g)") +
-  theme_classic() +
-  scale_fill_manual(values = brewer.pal(4, "Reds"), labels = c("<50g", "50-100g", "100-150g", ">150g")) +
-  scale_x_continuous(breaks = unique(long_weighted_proportions$SurveyYear)) +
-  theme(text = element_text(family = "Avenir", size = 12))
-
-plot
-#thinking about combining the bottom two categories since they both contribute so little to the overall proportion
-file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/MeatOccasionsProp.png"
-# Save plot to file
-ggsave(file_path, plot, width = 10, height = 8, dpi = 300)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#create weighted proportion of total meat occasions per day
-# Create the survey design object
-survey_design <- svydesign(id = ~area, strata = ~astrata5, weights = ~wti, data = dat)
 # Create a new categorical variable based on "avgMeatokaj"
 dat$Meatokajcat <- cut(dat$avgMeatokaj, 
                        breaks = c(-Inf, 1, 1.5, 2, Inf), 
@@ -1762,583 +1882,6 @@ plot
 file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/MeatOccasionsProp.png"
 # Save plot to file
 ggsave(file_path, plot, width = 10, height = 8, dpi = 300)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#total meat days
-# Create a srvyr object with the survey design
-dat_svy <- as_survey(survey_design)
-
-# Calculate the weighted proportion for each level of MeatDays by SurveyYear
-meat_days_prop <- dat_svy %>% 
-  group_by(SurveyYear) %>% 
-  summarize(prop_0 = survey_mean(MeatDays == 0),
-            prop_1 = survey_mean(MeatDays == 1),
-            prop_2 = survey_mean(MeatDays == 2),
-            prop_3 = survey_mean(MeatDays == 3),
-            prop_4 = survey_mean(MeatDays == 4))
-
-# View the results
-meat_days_prop
-# Identify the columns that end in "_se"
-se_cols <- grep("_se$", names(meat_days_prop))
-# Remove the columns that end in "_se"
-meat_days_prop_no_se <- meat_days_prop[, -se_cols]
-# Reshape the data from wide to long format
-meat_days_prop_long <- pivot_longer(meat_days_prop_no_se, cols = -SurveyYear, names_to = "MeatDays", values_to = "proportion")
-# Plot the stacked bar plot
-plot1 <- ggplot(meat_days_prop_long, aes(x = SurveyYear, y = proportion, fill = str_remove(MeatDays, "prop_"))) + 
-  geom_col() +
-  scale_fill_brewer(palette = "Reds", direction = 1) +
-  labs(x = "Survey Year", y = "Proportion", fill = "Meat Days") +
-  scale_x_continuous(breaks = meat_days_prop$SurveyYear, labels = meat_days_prop$SurveyYear) +
-  geom_text(aes(label = paste0(round(proportion*100),"%")), 
-            position = position_stack(vjust = 0.5)) +
-  theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12))
-plot1
-
-file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/MeatDaysProp.png"
-# Save plot to file
-ggsave(file_path, plot1, width = 10, height = 8, dpi = 300)
-
-
-
-
-#processed meat days
-# Calculate the weighted proportion for each level of MeatDays by SurveyYear
-Processed_days_prop <- dat_svy %>% 
-  group_by(SurveyYear) %>% 
-  summarize(prop_0 = survey_mean(ProcessedDays == 0),
-            prop_1 = survey_mean(ProcessedDays == 1),
-            prop_2 = survey_mean(ProcessedDays == 2),
-            prop_3 = survey_mean(ProcessedDays == 3),
-            prop_4 = survey_mean(ProcessedDays == 4))
-
-# View the results
-Processed_days_prop
-# Identify the columns that end in "_se"
-se_cols <- grep("_se$", names(Processed_days_prop))
-# Remove the columns that end in "_se"
-Processed_days_prop_no_se <- Processed_days_prop[, -se_cols]
-# Reshape the data from wide to long format
-Processed_days_prop_long <- pivot_longer(Processed_days_prop_no_se, cols = -SurveyYear, names_to = "ProcessedDays", values_to = "proportion")
-# Plot the stacked bar plot
-plot2 <- ggplot(Processed_days_prop_long, aes(x = SurveyYear, y = proportion, fill = str_remove(ProcessedDays, "prop_"))) + 
-  geom_col() +
-  scale_fill_brewer(palette = "Reds", direction = 1) +
-  labs(x = "Survey Year", y = "Proportion", fill = "Processed Days") +
-  scale_x_continuous(breaks = Processed_days_prop$SurveyYear, labels = Processed_days_prop$SurveyYear) +
-  geom_text(aes(label = paste0(round(proportion*100),"%")), 
-            position = position_stack(vjust = 0.5)) +
-  theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12))
-plot2
-
-file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/ProcessedDaysProp.png"
-# Save plot to file
-ggsave(file_path, plot2, width = 10, height = 8, dpi = 300)
-
-
-
-
-
-#red meat days
-# Calculate the weighted proportion for each level of MeatDays by SurveyYear
-Red_days_prop <- dat_svy %>% 
-  group_by(SurveyYear) %>% 
-  summarize(prop_0 = survey_mean(RedDays == 0),
-            prop_1 = survey_mean(RedDays == 1),
-            prop_2 = survey_mean(RedDays == 2),
-            prop_3 = survey_mean(RedDays == 3),
-            prop_4 = survey_mean(RedDays == 4))
-
-# View the results
-Red_days_prop
-# Identify the columns that end in "_se"
-se_cols <- grep("_se$", names(Red_days_prop))
-# Remove the columns that end in "_se"
-Red_days_prop_no_se <- Red_days_prop[, -se_cols]
-# Reshape the data from wide to long format
-Red_days_prop_long <- pivot_longer(Red_days_prop_no_se, cols = -SurveyYear, names_to = "RedDays", values_to = "proportion")
-# Plot the stacked bar plot
-plot3 <- ggplot(Red_days_prop_long, aes(x = SurveyYear, y = proportion, fill = str_remove(RedDays, "prop_"))) + 
-  geom_col() +
-  scale_fill_brewer(palette = "Reds", direction = 1) +
-  labs(x = "Survey Year", y = "Proportion", fill = "Red Days") +
-  scale_x_continuous(breaks = Red_days_prop$SurveyYear, labels = Red_days_prop$SurveyYear) +
-  geom_text(aes(label = paste0(round(proportion*100),"%")), 
-            position = position_stack(vjust = 0.5)) +
-  theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12))
-plot3
-
-file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/RedDaysProp.png"
-# Save plot to file
-ggsave(file_path, plot3, width = 10, height = 8, dpi = 300)
-
-
-
-
-
-
-
-
-
-
-#white meat days
-# Calculate the weighted proportion for each level of MeatDays by SurveyYear
-white_days_prop <- dat_svy %>% 
-  group_by(SurveyYear) %>% 
-  summarize(prop_0 = survey_mean(WhiteDays == 0),
-            prop_1 = survey_mean(WhiteDays == 1),
-            prop_2 = survey_mean(WhiteDays == 2),
-            prop_3 = survey_mean(WhiteDays == 3),
-            prop_4 = survey_mean(WhiteDays == 4))
-
-# View the results
-white_days_prop
-# Identify the columns that end in "_se"
-se_cols <- grep("_se$", names(white_days_prop))
-# Remove the columns that end in "_se"
-white_days_prop_no_se <- white_days_prop[, -se_cols]
-# Reshape the data from wide to long format
-white_days_prop_long <- pivot_longer(white_days_prop_no_se, cols = -SurveyYear, names_to = "WhiteDays", values_to = "proportion")
-# Plot the stacked bar plot
-plot4 <- ggplot(white_days_prop_long, aes(x = SurveyYear, y = proportion, fill = str_remove(WhiteDays, "prop_"))) + 
-  geom_col() +
-  scale_fill_brewer(palette = "Reds", direction = 1) +
-  labs(x = "Survey Year", y = "Proportion", fill = "White Days") +
-  scale_x_continuous(breaks = white_days_prop$SurveyYear, labels = white_days_prop$SurveyYear) +
-  geom_text(aes(label = paste0(round(proportion*100),"%")), 
-            position = position_stack(vjust = 0.5)) +
-  theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12))
-plot4
-
-file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/WhiteDaysProp.png"
-# Save plot to file
-ggsave(file_path, plot2, width = 10, height = 8, dpi = 300)
-
-
-
-
-
-
-# Add titles to each plot
-plot1 <- plot1 + ggtitle("Total meat") + theme(plot.title = element_text(hjust = 0.5))
-plot2 <- plot2 + ggtitle("Processed meat") + theme(plot.title = element_text(hjust = 0.5), legend.position = "none")
-plot3 <- plot3 + ggtitle("Red meat") + theme(plot.title = element_text(hjust = 0.5), legend.position = "none")
-plot4 <- plot4 + ggtitle("White meat") + theme(plot.title = element_text(hjust = 0.5), legend.position = "none")
-
-# Remove the x-axis label from plot1 and plot2
-plot1 <- plot1 + xlab(NULL)
-plot2 <- plot2 + xlab(NULL)
-
-# Remove the y-axis label from plot2 and plot4
-plot2 <- plot2 + ylab(NULL)
-plot4 <- plot4 + ylab(NULL)
-
-
-# Extract the legend from plot1
-plot1_legend <- cowplot::get_legend(plot1)
-
-# Remove the legend from the original plot1
-plot1 <- plot1 + theme(legend.position = "none")
-
-# Combine the plots into a single 4-pane plot without the legend
-combined_plot <- grid.arrange(plot1, plot2, plot3, plot4, ncol = 2, nrow = 2)
-
-# Add the legend to the right of the combined plot
-combined_plot <- grid.arrange(combined_plot, plot1_legend, ncol = 2, widths = c(8, 1))
-# Display the combined plot
-combined_plot
-
-
-file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/CombinedDaysProp.png"
-ggsave(file_path, combined_plot, width = 20, height = 16, dpi = 600)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#WORKS BUT NEEDS SOME EDITS
-
-# Define data
-meat_reduction_data <- data.frame(
-  categories = c("Portion size (g)", "Meat-eating days", "Meat-containing occasions"),
-  proportions = c(57, 37, 6)
-)
-
-# Calculate start points for the bars
-meat_reduction_data$start_points <- c(0, meat_reduction_data$proportions[1], sum(meat_reduction_data$proportions[1:2]))
-
-# Create manual y-axis labels
-y_axis_labels <- c("0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%")
-
-# Create manual x-axis labels
-x_axis_labels <- c("Portion size (g)", "Meat-eating days", "Meat-containing occasions")
-
-# Create the bar plot
-plot <- ggplot(meat_reduction_data, aes(x = categories, y = proportions, fill = categories)) +
-  geom_rect(aes(
-    xmin = c(0.4, 1.4, 2.4) + 0.6/3, xmax = c(1.6, 2.6, 3.6) - 0.6/3, ymin = start_points, ymax = start_points + proportions
-  ), fill = "#C6DBEF", color = "black", size = 0.2) +
-  geom_segment(aes(x = 1.6 - 0.6/3, y = 57, xend = 1.4 + 0.6/3, yend = 57), linewidth = 0.2) +
-  geom_segment(aes(x = 2.6 - 0.6/3, y = 57 + 37, xend = 2.4 + 0.6/3, yend = 57 + 37), linewidth = 0.2) +
-  geom_text(aes(x = c(1, 2, 3), y = start_points + proportions / 2, label = paste0(proportions, "%")), size = 4, color = "#313131") +
-  scale_x_discrete(labels = x_axis_labels) +
-  scale_y_continuous(labels = y_axis_labels, breaks = seq(0, 100, 10), limits = c(0, 100), expand = c(0, 0)) +  # Add expand = c(0, 0) to eliminate the gap
-  labs(x = "Meat consumption categories", y = "Proportion of meat reduction") +
-  theme_classic() +
-  theme(
-    text = element_text(family = "Avenir", size = 12),
-    axis.text.x = element_text(angle = 0, hjust = 0.5),
-    axis.title.x = element_text(margin = margin(t = 12)),
-    legend.position = "none"
-  )
-plot
-file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 2.png"
-# Save plot to file
-ggsave(file_path, plot, width = 8, height = 8, dpi = 600)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-##########################plots playings#########################
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-###################3SEPARATE PLOTS WITH HUGE FONT FOR POSTER###################
-
-
-
-
-
-# Set font family and font size
-font_size <- 24
-font_family <- "Avenir"
-
-# MeatDays
-m2 <- svyglm(ProcessedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
-m3 <- svyglm(RedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
-m4 <- svyglm(WhiteDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
-m5 <- svyglm(NoMeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
-
-# Predict fitted values for each model
-survey_years <- unique(dat.design$variables$SurveyYear)
-predictions <- data.frame(
-  SurveyYear = rep(survey_years, 4),
-  Category = factor(rep(c("ProcessedDays", "RedDays", "WhiteDays", "NoMeatDays"), each = length(survey_years))),
-  PredictedDays = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
-                    predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
-                    predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"),
-                    predict(m5, newdata = data.frame(SurveyYear = survey_years), type = "response"))
-)
-
-# Create a custom color palette using the darker colors from the "PuBuGn" palette
-color_palette <- c("#FDAE61", "#ABD9E9", "#D53E4F", "#41AB5D") #order: processed (orange), white (blue), red (red), no meat (green)
-
-# Create a custom factor level order based on the correct order
-predictions$Category <- factor(predictions$Category, levels = c("ProcessedDays", "WhiteDays", "RedDays", "NoMeatDays"))
-
-# Update the category names with proper spacing
-levels(predictions$Category) <- c("Processed", "White", "Red", "No Meat")
-
-# Create a combined plot with ggplot2 using the custom color palette, scatter points, and connected lines
-plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
-  geom_point(size = 1) +
-  geom_line() +
-  geom_smooth(method = "glm", se = FALSE, linetype = "dashed", aes(group = Category)) +
-  scale_color_manual(values = color_palette) +
-  labs(title = "Meat days/4-day diary period",
-       x = "Survey Year",
-       y = "No. days",
-       color = "Category") +
-  theme_classic(base_size = font_size, base_family = font_family) +
-  theme(axis.text.x = element_text(angle = 0),
-        legend.position = "none") # add this line to hide the legend
-
-# Print the plot
-print(plot)
-
-ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Days plot.png", plot, width = 8, height = 10)
-
-
-
-
-#Occasions
-m2 <- svyglm(avgProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-m3 <- svyglm(avgRedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-m4 <- svyglm(avgWhiteokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-
-# Predict fitted values for each model
-survey_years <- unique(dat.design$variables$SurveyYear)
-predictions <- data.frame(
-  SurveyYear = rep(survey_years, 3),
-  Category = factor(rep(c("avgProcessedokaj", "avgRedokaj", "avgWhiteokaj"), each = length(survey_years))),
-  PredictedDays = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
-                    predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
-                    predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"))
-)
-
-# Create a custom color palette using the darker colors from the "PuBuGn" palette
-color_palette <- c("#FDAE61", "#ABD9E9", "#D53E4F") #order: processed (orange), white (blue), red (red)
-
-# Create a custom factor level order based on the correct order
-predictions$Category <- factor(predictions$Category, levels = c("avgProcessedokaj", "avgWhiteokaj", "avgRedokaj"))
-
-# Update the category names with proper spacing
-levels(predictions$Category) <- c("Processed meat", "White meat", "Red meat")
-
-# Create a combined plot with ggplot2 using the custom color palette, scatter points, and connected lines
-plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
-  geom_point(size = 1) +
-  geom_line() +
-  geom_smooth(method = "glm", se = FALSE, linetype = "dashed", aes(group = Category)) + 
-  scale_color_manual(values = color_palette) +
-  labs(title = "Meat-eating occasions/day",
-       x = "Survey Year",
-       y = "No. occasions",
-       color = "Category") +
-  theme_classic(base_size = font_size, base_family = font_family) +
-  theme(axis.text.x = element_text(angle = 0),
-        legend.position = "none") # add this line to hide the legend
-
-# Print the plot
-print(plot)
-
-ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Occasions plot.png", plot, width = 8, height = 10)
-
-
-
-
-
-
-#portion size
-m2 <- svyglm(gperokajProcessed ~ SurveyYear, family=poisson(link = "log"), dat.design)
-m3 <- svyglm(gperokajRed ~ SurveyYear, family=poisson(link = "log"), dat.design)
-m4 <- svyglm(gperokajWhite ~ SurveyYear, family=poisson(link = "log"), dat.design)
-
-# Predict fitted values for each model
-survey_years <- unique(dat.design$variables$SurveyYear)
-predictions <- data.frame(
-  SurveyYear = rep(survey_years, 3),
-  Category = factor(rep(c("gperokajProcessed", "gperokajRed", "gperokajWhite"), each = length(survey_years))),
-  PredictedDays = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
-                    predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
-                    predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"))
-)
-
-# Create a custom color palette using the darker colors from the "PuBuGn" palette
-color_palette <- c("#ABD9E9", "#D53E4F", "#FDAE61") #order: white (blue), red (red), processed (orange)
-
-# Create a custom factor level order based on the correct order
-predictions$Category <- factor(predictions$Category, levels = c("gperokajWhite", "gperokajRed", "gperokajProcessed"))
-
-# Update the category names with proper spacing
-levels(predictions$Category) <- c("White meat", "Red meat", "Processed meat")
-
-# Create a combined plot with ggplot2 using the custom color palette, scatter points, and connected lines
-plot <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
-  geom_point(size = 1) +
-  geom_line() +
-  geom_smooth(method = "glm", se = FALSE, linetype = "dashed", aes(group = Category)) + 
-  scale_color_manual(values = color_palette) +
-  labs(title = "Portion size/meat-containing occasion",
-       x = "Survey Year",
-       y = "Portion size (g)",
-       color = "Category") +
-  theme_classic(base_size = font_size, base_family = font_family) +
-  theme(axis.text.x = element_text(angle = 0),
-        legend.position = "none") # add this line to hide the legend
-
-# Print the plot
-print(plot)
-
-ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Portion size plot.png", plot, width = 8, height = 10)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-###############TESTS######################
-#####################DISTRIBUTION PLOTS###########################
-ggplot(dat, aes(x=MeatDays)) + geom_histogram(binwidth=.5)
-ggplot(dat, aes(x=ProcessedDays)) + geom_histogram(binwidth=.5)
-ggplot(dat, aes(x=RedDays)) + geom_histogram(binwidth=.5)
-ggplot(dat, aes(x=WhiteDays)) + geom_histogram(binwidth=.5)
-ggplot(dat, aes(x=NoMeatDays)) + geom_histogram(binwidth=.5)
-
-ggplot(dat, aes(x=avgMeatokaj)) + geom_histogram(binwidth=.5)
-ggplot(dat, aes(x=avgProcessedokaj)) + geom_histogram(binwidth=.5)
-ggplot(dat, aes(x=avgRedokaj)) + geom_histogram(binwidth=.5)
-ggplot(dat, aes(x=avgWhiteokaj)) + geom_histogram(binwidth=.5)
-ggplot(dat, aes(x=avgNoMeatokaj)) + geom_histogram(binwidth=.5)
-
-ggplot(dat, aes(x=gperokajMeat)) + geom_histogram(binwidth=.5) #excluded 629
-ggplot(dat, aes(x=gperokajProcessed)) + geom_histogram(binwidth=.5) #excluded 2,967
-ggplot(dat, aes(x=gperokajRed)) + geom_histogram(binwidth=.5) #excluded 4,095
-ggplot(dat, aes(x=gperokajWhite)) + geom_histogram(binwidth=.5) #excluded 3,232
-15332-629
-15332-2967
-15332-4095
-15332-3232
-
-
-
-
-
-
-
-
-
-
 
 
 
