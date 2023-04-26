@@ -47,7 +47,8 @@ dat$DWhiteokajperc <- dat$DWhiteokaj/dat$Dtotokaj
 
 #set survey designs
 
-#make survey year numeric
+#make survey year factor or numeric, depending on analyses intended to be completed
+#make sure to re-set the survey design after you've changed surveyyear's variable type
 dat$SurveyYear <- as.factor(dat$SurveyYear)#run for regression analyses
 dat$SurveyYear <- as.numeric(dat$SurveyYear)#run for plots
 
@@ -256,7 +257,7 @@ m1 <- svyglm(BProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.desi
 exp_summary(m1)
 m1 <- svyglm(BRedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
 exp_summary(m1)
-m1 <- svyglm(BWhiteokaj ~ SurveyYear, family=poisson(link = "log"), dat.design.y1)
+m1 <- svyglm(BWhiteokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
 exp_summary(m1)
 
 
@@ -1216,9 +1217,10 @@ exp(b0+b2.2+b1+b3.2)
 
 
 
-####################### - DECOMPOSITION ANALYSIS###############
+#######################DECOMPOSITION ANALYSIS###############
 
-
+c1/4
+c2/4
 #total meat
 #convert occasions per day variable to occasions per MEAT day (to add up for decomp)
 zo1 <- 1.238239
