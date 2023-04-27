@@ -135,6 +135,18 @@ survey_design11 %>%
   summarise(pct = survey_mean())
 
 
+#count % of meat consumers
+survey_design1 <- mutate(survey_design1, meat_gt_0 = as.numeric(sumMeatg > 0))
+survey_design1 %>%
+  group_by(meat_gt_0) %>%
+  summarise(pct = survey_mean()) #96.4%
+
+# Create a new variable indicating whether sumMeatg > 0
+survey_design11 <- mutate(survey_design11, meat_gt_0 = as.numeric(sumMeatg > 0))
+survey_design11 %>%
+  group_by(meat_gt_0) %>%
+  summarise(pct = survey_mean()) #93.4%
+
 
 #############################TABLE 2 - MAIN ANALYSIS ###################
 
@@ -1751,6 +1763,163 @@ ggsave(file_path, combined_plot, width = 20, height = 16, dpi = 600)
 
 
 
+###############FIGURE 4###########################
+
+custom_x_labels <- function(x) {
+  labels <- ifelse(x == 1, "2008", sprintf("'%02d", x + 7))
+  return(labels)
+}
+
+#
+dat_svy <- as_survey(survey_design)
+
+# Create categorical variable for BMeatokajperc
+dat_svy <- dat_svy %>%
+  mutate(BMeatokajperc_cat = case_when(
+    BMeatokajperc == 0 ~ "0%",
+    BMeatokajperc > 0 & BMeatokajperc < 0.5 ~ "1-49%",
+    BMeatokajperc >= 0.5 & BMeatokajperc < 1 ~ "50-99%",
+    BMeatokajperc == 1 ~ "100%"
+  )) %>%
+  filter(!is.na(BMeatokajperc_cat))
+
+# Summarize data for plotting
+summary_df <- dat_svy %>%
+  group_by(SurveyYear, BMeatokajperc_cat) %>%
+  summarise(count = survey_total(weights = weights)) %>%
+  ungroup()
+
+# Calculate the percentage for each category within each SurveyYear
+summary_df <- summary_df %>%
+  group_by(SurveyYear) %>%
+  mutate(percentage = count / sum(count) * 100) %>%
+  ungroup()
+
+# Reorder the categories
+summary_df$BMeatokajperc_cat <- factor(summary_df$BMeatokajperc_cat, levels = c("100%", "50-99%", "1-49%", "0%"))
+
+plot1 <- ggplot(summary_df, aes(x = SurveyYear, y = percentage, fill = BMeatokajperc_cat)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = sprintf("%.1f%%", percentage)), position = position_stack(vjust = 0.5), size = 3.5) +
+  scale_x_continuous(breaks = meat_days_prop$SurveyYear, labels = custom_x_labels) +
+  scale_y_continuous(labels = function(x) paste0(x, "%")) +
+  scale_fill_brewer(palette = "Reds", direction = -1) +
+  theme_classic() +
+  theme(text = element_text(family = "Avenir", size = 12)) +
+  labs(x = "Survey Year", y = "Percentage of breakfasts containing meat") +
+  guides(fill = guide_legend(title = "Meat consumption"))
+
+# Show the plot
+print(plot1)
+
+
+
+# Create categorical variable for LMeatokajperc
+dat_svy <- dat_svy %>%
+  mutate(LMeatokajperc_cat = case_when(
+    LMeatokajperc == 0 ~ "0%",
+    LMeatokajperc > 0 & LMeatokajperc < 0.5 ~ "1-49%",
+    LMeatokajperc >= 0.5 & LMeatokajperc < 1 ~ "50-99%",
+    LMeatokajperc == 1 ~ "100%"
+  )) %>%
+  filter(!is.na(LMeatokajperc_cat))
+
+# Summarize data for plotting
+summary_df <- dat_svy %>%
+  group_by(SurveyYear, LMeatokajperc_cat) %>%
+  summarise(count = survey_total(weights = weights)) %>%
+  ungroup()
+
+# Calculate the percentage for each category within each SurveyYear
+summary_df <- summary_df %>%
+  group_by(SurveyYear) %>%
+  mutate(percentage = count / sum(count) * 100) %>%
+  ungroup()
+
+# Reorder the categories
+summary_df$LMeatokajperc_cat <- factor(summary_df$LMeatokajperc_cat, levels = c("100%", "50-99%", "1-49%", "0%"))
+
+plot2 <- ggplot(summary_df, aes(x = SurveyYear, y = percentage, fill = LMeatokajperc_cat)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = sprintf("%.1f%%", percentage)), position = position_stack(vjust = 0.5), size = 3.5) +
+  scale_x_continuous(breaks = meat_days_prop$SurveyYear, labels = custom_x_labels) +
+  scale_y_continuous(labels = function(x) paste0(x, "%")) +
+  scale_fill_brewer(palette = "Reds", direction = -1) +
+  theme_classic() +
+  theme(text = element_text(family = "Avenir", size = 12)) +
+  labs(x = "Survey Year", y = "Percentage of lunches containing meat") +
+  guides(fill = guide_legend(title = "Meat consumption"))
+
+# Show the plot
+print(plot2)
+
+
+
+
+
+
+
+
+# Create categorical variable for DMeatokajperc
+dat_svy <- dat_svy %>%
+  mutate(DMeatokajperc_cat = case_when(
+    DMeatokajperc == 0 ~ "0%",
+    DMeatokajperc > 0 & DMeatokajperc < 0.5 ~ "1-49%",
+    DMeatokajperc >= 0.5 & DMeatokajperc < 1 ~ "50-99%",
+    DMeatokajperc == 1 ~ "100%"
+  )) %>%
+  filter(!is.na(DMeatokajperc_cat))
+
+# Summarize data for plotting
+summary_df <- dat_svy %>%
+  group_by(SurveyYear, DMeatokajperc_cat) %>%
+  summarise(count = survey_total(weights = weights)) %>%
+  ungroup()
+
+# Calculate the percentage for each category within each SurveyYear
+summary_df <- summary_df %>%
+  group_by(SurveyYear) %>%
+  mutate(percentage = count / sum(count) * 100) %>%
+  ungroup()
+
+# Reorder the categories
+summary_df$DMeatokajperc_cat <- factor(summary_df$DMeatokajperc_cat, levels = c("100%", "50-99%", "1-49%", "0%"))
+
+plot3 <- ggplot(summary_df, aes(x = SurveyYear, y = percentage, fill = DMeatokajperc_cat)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = sprintf("%.1f%%", percentage)), position = position_stack(vjust = 0.5), size = 3.5) +
+  scale_x_continuous(breaks = meat_days_prop$SurveyYear, labels = custom_x_labels) +
+  scale_y_continuous(labels = function(x) paste0(x, "%")) +
+  scale_fill_brewer(palette = "Reds", direction = -1) +
+  theme_classic() +
+  theme(text = element_text(family = "Avenir", size = 12)) +
+  labs(x = "Survey Year", y = "Percentage of dinners containing meat") +
+  guides(fill = guide_legend(title = "Meat consumption"))
+
+# Show the plot
+print(plot3)
+
+
+#combine all into 1 figure
+#Remove the legend from plot2 and plot3
+plot2 <- plot2 + theme(legend.position = "none")
+plot3 <- plot3 + theme(legend.position = "none")
+#extract the legend from plot1
+legend_grob <- cowplot::get_legend(plot1)
+#remove the legend from plot1
+plot1 <- plot1 + theme(legend.position = "none")
+#combine the plots and legend into a single plot
+top_row <- cowplot::plot_grid(plot1, plot2, nrow = 1)
+bottom_row <- cowplot::plot_grid(plot3, legend_grob, nrow = 1, rel_widths = c(1, 1))
+combined_plot <- cowplot::plot_grid(top_row, bottom_row, ncol = 1, rel_heights = c(1, 1))
+print(combined_plot)
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 4.png", combined_plot, width = 8, height = 8, dpi = 600)
+
+
+
+
+
+
 #####################DISTRIBUTION TESTS###########################
 ggplot(dat, aes(x=MeatDays)) + geom_histogram(binwidth=.5)
 ggplot(dat, aes(x=ProcessedDays)) + geom_histogram(binwidth=.5)
@@ -1910,6 +2079,21 @@ plot
 file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/MeatOccasionsProp.png"
 # Save plot to file
 ggsave(file_path, plot, width = 10, height = 8, dpi = 300)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
