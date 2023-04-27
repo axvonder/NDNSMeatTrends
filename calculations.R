@@ -1765,15 +1765,15 @@ ggsave(file_path, combined_plot, width = 20, height = 16, dpi = 600)
 
 ###############FIGURE 4###########################
 
+#function for survey year x axis
 custom_x_labels <- function(x) {
   labels <- ifelse(x == 1, "2008", sprintf("'%02d", x + 7))
   return(labels)
 }
 
-#
+#assign survey to dataset
 dat_svy <- as_survey(survey_design)
-
-# Create categorical variable for BMeatokajperc
+#create categorical variable for BMeatokajperc
 dat_svy <- dat_svy %>%
   mutate(BMeatokajperc_cat = case_when(
     BMeatokajperc == 0 ~ "0%",
@@ -1782,22 +1782,19 @@ dat_svy <- dat_svy %>%
     BMeatokajperc == 1 ~ "100%"
   )) %>%
   filter(!is.na(BMeatokajperc_cat))
-
-# Summarize data for plotting
+#summarize data for plotting
 summary_df <- dat_svy %>%
   group_by(SurveyYear, BMeatokajperc_cat) %>%
   summarise(count = survey_total(weights = weights)) %>%
   ungroup()
-
-# Calculate the percentage for each category within each SurveyYear
+#calculate the percentage for each category within each SurveyYear
 summary_df <- summary_df %>%
   group_by(SurveyYear) %>%
   mutate(percentage = count / sum(count) * 100) %>%
   ungroup()
-
-# Reorder the categories
+#reorder the categories
 summary_df$BMeatokajperc_cat <- factor(summary_df$BMeatokajperc_cat, levels = c("100%", "50-99%", "1-49%", "0%"))
-
+#plot
 plot1 <- ggplot(summary_df, aes(x = SurveyYear, y = percentage, fill = BMeatokajperc_cat)) +
   geom_bar(stat = "identity") +
   geom_text(aes(label = sprintf("%.1f%%", percentage)), position = position_stack(vjust = 0.5), size = 3.5) +
@@ -1808,13 +1805,9 @@ plot1 <- ggplot(summary_df, aes(x = SurveyYear, y = percentage, fill = BMeatokaj
   theme(text = element_text(family = "Avenir", size = 12)) +
   labs(x = "Survey Year", y = "Percentage of breakfasts containing meat") +
   guides(fill = guide_legend(title = "Meat consumption"))
-
-# Show the plot
 print(plot1)
 
-
-
-# Create categorical variable for LMeatokajperc
+#create categorical variable for LMeatokajperc
 dat_svy <- dat_svy %>%
   mutate(LMeatokajperc_cat = case_when(
     LMeatokajperc == 0 ~ "0%",
@@ -1823,22 +1816,19 @@ dat_svy <- dat_svy %>%
     LMeatokajperc == 1 ~ "100%"
   )) %>%
   filter(!is.na(LMeatokajperc_cat))
-
-# Summarize data for plotting
+#summarize data for plotting
 summary_df <- dat_svy %>%
   group_by(SurveyYear, LMeatokajperc_cat) %>%
   summarise(count = survey_total(weights = weights)) %>%
   ungroup()
-
-# Calculate the percentage for each category within each SurveyYear
+#calculate the percentage for each category within each SurveyYear
 summary_df <- summary_df %>%
   group_by(SurveyYear) %>%
   mutate(percentage = count / sum(count) * 100) %>%
   ungroup()
-
-# Reorder the categories
+#reorder the categories
 summary_df$LMeatokajperc_cat <- factor(summary_df$LMeatokajperc_cat, levels = c("100%", "50-99%", "1-49%", "0%"))
-
+#plot
 plot2 <- ggplot(summary_df, aes(x = SurveyYear, y = percentage, fill = LMeatokajperc_cat)) +
   geom_bar(stat = "identity") +
   geom_text(aes(label = sprintf("%.1f%%", percentage)), position = position_stack(vjust = 0.5), size = 3.5) +
@@ -1849,18 +1839,9 @@ plot2 <- ggplot(summary_df, aes(x = SurveyYear, y = percentage, fill = LMeatokaj
   theme(text = element_text(family = "Avenir", size = 12)) +
   labs(x = "Survey Year", y = "Percentage of lunches containing meat") +
   guides(fill = guide_legend(title = "Meat consumption"))
-
-# Show the plot
 print(plot2)
 
-
-
-
-
-
-
-
-# Create categorical variable for DMeatokajperc
+#create categorical variable for DMeatokajperc
 dat_svy <- dat_svy %>%
   mutate(DMeatokajperc_cat = case_when(
     DMeatokajperc == 0 ~ "0%",
@@ -1869,22 +1850,19 @@ dat_svy <- dat_svy %>%
     DMeatokajperc == 1 ~ "100%"
   )) %>%
   filter(!is.na(DMeatokajperc_cat))
-
-# Summarize data for plotting
+#ummarize data for plotting
 summary_df <- dat_svy %>%
   group_by(SurveyYear, DMeatokajperc_cat) %>%
   summarise(count = survey_total(weights = weights)) %>%
   ungroup()
-
-# Calculate the percentage for each category within each SurveyYear
+#calculate the percentage for each category within each SurveyYear
 summary_df <- summary_df %>%
   group_by(SurveyYear) %>%
   mutate(percentage = count / sum(count) * 100) %>%
   ungroup()
-
-# Reorder the categories
+#reorder the categories
 summary_df$DMeatokajperc_cat <- factor(summary_df$DMeatokajperc_cat, levels = c("100%", "50-99%", "1-49%", "0%"))
-
+#plot
 plot3 <- ggplot(summary_df, aes(x = SurveyYear, y = percentage, fill = DMeatokajperc_cat)) +
   geom_bar(stat = "identity") +
   geom_text(aes(label = sprintf("%.1f%%", percentage)), position = position_stack(vjust = 0.5), size = 3.5) +
@@ -1895,8 +1873,6 @@ plot3 <- ggplot(summary_df, aes(x = SurveyYear, y = percentage, fill = DMeatokaj
   theme(text = element_text(family = "Avenir", size = 12)) +
   labs(x = "Survey Year", y = "Percentage of dinners containing meat") +
   guides(fill = guide_legend(title = "Meat consumption"))
-
-# Show the plot
 print(plot3)
 
 
