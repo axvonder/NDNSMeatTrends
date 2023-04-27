@@ -1411,6 +1411,8 @@ color_palette <- c("#E69F00", "#0072B2", "#D55E00", "#009E73") #order: processed
 predictions$Category <- factor(predictions$Category, levels = c("ProcessedDays", "WhiteDays", "RedDays", "NoMeatDays"))
 #category names
 levels(predictions$Category) <- c("Processed", "White", "Red", "No Meat")
+#convert SurveyYear to numeric
+predictions$SurveyYear <- as.numeric(as.character(predictions$SurveyYear))
 #create plot
 plot1 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
   geom_point(size = 1) +
@@ -1421,6 +1423,7 @@ plot1 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Cate
                         values = c("solid" = "solid", "dotted" = "dotted"),
                         labels = c("solid" = "Actual data", "dotted" = "2008-2019 trend")) +
   labs(x = "Survey Year", y = "Number of days (avg. across 4-day period)", color = "Meat category") +
+  scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
   theme_classic() +
   theme(text = element_text(family = "Avenir", size = 12)) +
   guides(linetype = guide_legend(override.aes = list(color = "black")))
@@ -1447,6 +1450,8 @@ color_palette <- c("#E69F00", "#0072B2", "#D55E00") #order: processed (orange), 
 predictions$Category <- factor(predictions$Category, levels = c("avgProcessedokaj", "avgWhiteokaj", "avgRedokaj"))
 #names for xlab
 levels(predictions$Category) <- c("Processed", "White", "Red")
+#convert SurveyYear to numeric
+predictions$SurveyYear <- as.numeric(as.character(predictions$SurveyYear))
 #create plot
 plot2 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedOccasions, color = Category, group = Category)) +
   geom_point(size = 1) +
@@ -1454,6 +1459,7 @@ plot2 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedOccasions, color =
   geom_smooth(method = "glm", se = FALSE, linetype = "dotted", aes(group = Category)) + #this adds the fitted line
   scale_color_manual(values = color_palette) +
   labs(x = "Survey Year", y = "Number of meat-containing occasions/day", color = "Meat category") +
+  scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
   theme_classic() +
   theme(text = element_text(family = "Avenir", size = 12))
 print(plot2)
@@ -1481,6 +1487,8 @@ color_palette <- c("#0072B2", "#D55E00", "#E69F00") #order: white (blue), red (r
 predictions$Category <- factor(predictions$Category, levels = c("gperokajWhite", "gperokajRed", "gperokajProcessed"))
 #names for xlab
 levels(predictions$Category) <- c("White", "Red", "Processed")
+#convert SurveyYear to numeric
+predictions$SurveyYear <- as.numeric(as.character(predictions$SurveyYear))
 #create plot
 plot3 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedPortion, color = Category, group = Category)) +
   geom_point(size = 1) +
@@ -1488,6 +1496,7 @@ plot3 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedPortion, color = C
   geom_smooth(method = "glm", se = FALSE, linetype = "dotted", aes(group = Category)) + #this adds the fitted line
   scale_color_manual(values = color_palette) +
   labs(x = "Survey Year", y = "Portion size (g)/meat-containing occasion", color = "Meat category") +
+  scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
   theme_classic() +
   theme(text = element_text(family = "Avenir", size = 12))
 print(plot3)
@@ -1541,6 +1550,14 @@ meat_data <- data.frame(
   Occasions_Delta = c(-4.62, 2.25, -4.18, 1.55),
   Portion_Size_Delta = c(-45.70, -21.90, -31.02, -8.39)
 )
+
+meat_data_divided <- meat_data
+numeric_columns <- sapply(meat_data, is.numeric)
+#divide numeric columns by 4
+meat_data_divided[, numeric_columns] <- meat_data[, numeric_columns] / 4
+#rename back to original
+meat_data <- meat_data_divided
+print(meat_data)
 #transform
 melted_data <- reshape2::melt(meat_data, id.vars = "Meat")
 #make plot
@@ -1555,19 +1572,24 @@ bar_plot <- ggplot(melted_data, aes(x = Meat, y = value, fill = variable)) +
   theme_classic() +
   theme(text = element_text(family = "Avenir", size = 12)) 
 #define the y-axis limits (didn't like the cuts it was giving me)
-y_limits <- c(-85, 20)
+y_limits <- c(-22, 5)
 #update plot with modified y-axis limits/breaks and a dashed line at y=0
 bar_plot <- bar_plot +
   scale_y_continuous(limits = y_limits, expand = c(0, 0), 
-                     breaks = seq(-80, 20, by = 20)) +
+                     breaks = seq(-20, 5, by = 5)) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
-  geom_text(aes(label = round(value), y = value, group = variable, vjust = ifelse(value >= 0, -0.5, 1.5)), 
-            position = position_dodge(width = 0.5))
+  geom_text(aes(label = sprintf("%.1f", value), y = value, group = variable, vjust = ifelse(value >= 0, -0.5, 1.5)), 
+            position = position_dodge(width = 0.5), size = 2.5)
 print(bar_plot)
 file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 2.png"
 ggsave(file_path, bar_plot, width = 10, height = 8, dpi = 600)
 
 ###############FIGURE 3#################################
+
+custom_x_labels <- function(x) {
+  labels <- ifelse(x == 1, "2008", sprintf("'%02d", x + 7))
+  return(labels)
+}
 
 #total meat days
 #set the weighting structure a srvyr object with the survey design
@@ -1592,11 +1614,12 @@ plot1 <- ggplot(meat_days_prop_long, aes(x = SurveyYear, y = proportion, fill = 
   geom_col() +
   scale_fill_brewer(palette = "Reds", direction = 1) +
   labs(x = "Survey Year", y = "Proportion", fill = "Meat Days") +
-  scale_x_continuous(breaks = meat_days_prop$SurveyYear, labels = meat_days_prop$SurveyYear) +
+  scale_x_continuous(breaks = meat_days_prop$SurveyYear, labels = custom_x_labels) +
   geom_text(aes(label = paste0(round(proportion*100),"%")), 
             position = position_stack(vjust = 0.5)) +
   theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12))
+  theme(text = element_text(family = "Avenir", size = 12)) +
+  scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.25))
 plot1
 file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/MeatDaysProp.png"
 ggsave(file_path, plot1, width = 10, height = 8, dpi = 300)
@@ -1622,11 +1645,12 @@ plot2 <- ggplot(Processed_days_prop_long, aes(x = SurveyYear, y = proportion, fi
   geom_col() +
   scale_fill_brewer(palette = "Reds", direction = 1) +
   labs(x = "Survey Year", y = "Proportion", fill = "Processed Days") +
-  scale_x_continuous(breaks = Processed_days_prop$SurveyYear, labels = Processed_days_prop$SurveyYear) +
+  scale_x_continuous(breaks = Processed_days_prop$SurveyYear, labels = custom_x_labels) +
   geom_text(aes(label = paste0(round(proportion*100),"%")), 
             position = position_stack(vjust = 0.5)) +
   theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12))
+  theme(text = element_text(family = "Avenir", size = 12)) +
+  scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.25))
 plot2
 file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/ProcessedDaysProp.png"
 ggsave(file_path, plot2, width = 10, height = 8, dpi = 300)
@@ -1652,11 +1676,12 @@ plot3 <- ggplot(Red_days_prop_long, aes(x = SurveyYear, y = proportion, fill = s
   geom_col() +
   scale_fill_brewer(palette = "Reds", direction = 1) +
   labs(x = "Survey Year", y = "Proportion", fill = "Red Days") +
-  scale_x_continuous(breaks = Red_days_prop$SurveyYear, labels = Red_days_prop$SurveyYear) +
+  scale_x_continuous(breaks = Red_days_prop$SurveyYear, labels = custom_x_labels) +
   geom_text(aes(label = paste0(round(proportion*100),"%")), 
             position = position_stack(vjust = 0.5)) +
   theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12))
+  theme(text = element_text(family = "Avenir", size = 12)) +
+  scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.25))
 plot3
 file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/RedDaysProp.png"
 ggsave(file_path, plot3, width = 10, height = 8, dpi = 300)
@@ -1682,11 +1707,12 @@ plot4 <- ggplot(white_days_prop_long, aes(x = SurveyYear, y = proportion, fill =
   geom_col() +
   scale_fill_brewer(palette = "Reds", direction = 1) +
   labs(x = "Survey Year", y = "Proportion", fill = "White Days") +
-  scale_x_continuous(breaks = white_days_prop$SurveyYear, labels = white_days_prop$SurveyYear) +
+  scale_x_continuous(breaks = white_days_prop$SurveyYear, labels = custom_x_labels) +
   geom_text(aes(label = paste0(round(proportion*100),"%")), 
             position = position_stack(vjust = 0.5)) +
   theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12))
+  theme(text = element_text(family = "Avenir", size = 12)) +
+  scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.25))
 plot4
 file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/WhiteDaysProp.png"
 ggsave(file_path, plot2, width = 10, height = 8, dpi = 300)
@@ -1712,7 +1738,7 @@ combined_plot <- grid.arrange(plot1, plot2, plot3, plot4, ncol = 2, nrow = 2)
 #add the legend to the right of the combined plot
 combined_plot <- grid.arrange(combined_plot, plot1_legend, ncol = 2, widths = c(8, 1))
 combined_plot
-file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/CombinedDaysProp.png"
+file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 3.png"
 ggsave(file_path, combined_plot, width = 20, height = 16, dpi = 600)
 
 
