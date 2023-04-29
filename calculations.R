@@ -28,6 +28,8 @@ dat <- dat %>%
     Age >= 60 ~ 5,
     TRUE ~ 99
   ))
+dat$AgeG <- as.factor(dat$AgeG)
+dat$AgeG <- relevel(dat$AgeG, ref = 3)
 #create variable for '% of SMTs that contain meat'
 #breakfast
 dat$BMeatokajperc <- dat$BMeatokaj/dat$Btotokaj
@@ -200,7 +202,6 @@ exp_summary <- function(model) {
 
 ##MEAT DAYS##
 m1 <- svyglm(MeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
-summary(m1)
 exp_summary(m1)
 m1 <- svyglm(ProcessedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
 exp_summary(m1)
@@ -258,6 +259,8 @@ dat.design.y11 <-
     fpc = ~fpc
   )
 
+#count #of participants in each survey year
+table(dat$SurveyYear)
 
 
 #########################SI TABLE 1 - STM ANALYSIS########################
@@ -341,544 +344,163 @@ exp_summary(m1)
 
 
 ##########################SI TABLE 2 - analysis by covariates########################
-#Sex
-#Days
-m1 <- svyglm(MeatDays ~ SurveyYear + Sex +
-               SurveyYear*Sex,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-exp_summary(m1)
-#men
-exp(1.2067741)
-exp(1.2067741-0.0643641)
-#women
-exp(1.2067741-0.0424610)
-exp(1.2067741-0.0424610-0.0643641-0.0250790)
-m1 <- svyglm(ProcessedDays ~ SurveyYear + Sex +
-               SurveyYear*Sex,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-#men
-exp(0.6380294)
-exp(0.6380294-0.0788875)
-#women
-exp(0.6380294-0.1340621)
-exp(0.6380294-0.1340621-0.0788875-0.0529647)
-m1 <- svyglm(RedDays ~ SurveyYear + Sex +
-               SurveyYear*Sex,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-#men
-exp(0.475398)
-exp(0.475398-0.233433)
-#women
-exp(0.475398-0.060021)
-exp(0.475398-0.060021-0.233433-0.012222)
-m1 <- svyglm(WhiteDays ~ SurveyYear + Sex +
-               SurveyYear*Sex,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-#men
-exp(0.33375)
-exp(0.33375+0.16677)
-#women
-exp(0.33375+0.03262)
-exp(0.33375+0.03262+0.16677-0.13116)
-m1 <- svyglm(NoMeatDays ~ SurveyYear + Sex +
-               SurveyYear*Sex,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-#men
-exp(-0.419590)
-exp(-0.419590+0.275359)
-#women
-exp(-0.419590+0.191784)
-exp(-0.419590+0.191784+0.275359+0.020469)
-
-#Occasions
-m1 <- svyglm(avgMeatokaj ~ SurveyYear + Sex +
-               SurveyYear*Sex,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-#men
-exp(0.270496)
-exp(0.270496-0.049780)
-#women
-exp(0.270496-0.111629)
-exp(0.270496-0.111629-0.049780-0.080881)
-m1 <- svyglm(avgProcessedokaj ~ SurveyYear + Sex +
-               SurveyYear*Sex,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-#men
-exp(-0.534707)
-exp(-0.534707-0.025953)
-#women
-exp(-0.534707-0.163611)
-exp(-0.534707-0.163611-0.025953-0.127826)
-m1 <- svyglm(avgRedokaj ~ SurveyYear + Sex +
-               SurveyYear*Sex,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-#men
-exp(-0.760957)
-exp(-0.760957-0.276008)
-#women
-exp(-0.760957-0.119445)
-exp(-0.760957-0.119445-0.276008+0.004873)
-m1 <- svyglm(avgWhiteokaj ~ SurveyYear + Sex +
-               SurveyYear*Sex,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-#men
-exp(-0.886878)
-exp(-0.886878+0.168537)
-#women
-exp(-0.886878-0.036084)
-exp(-0.886878-0.036084+0.168537-0.116412)
-
-#portion size
-m1 <- svyglm(gperokajMeat ~ SurveyYear + Sex +
-               SurveyYear*Sex,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-#men
-exp(4.56634)
-exp(4.56634-0.16850)
-#women
-exp(4.56634-0.23724)
-exp(4.56634-0.23724-0.16850+0.10772)
-m1 <- svyglm(gperokajProcessed ~ SurveyYear + Sex +
-               SurveyYear*Sex,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-#men
-exp(4.30866)
-exp(4.30866-0.24235)
-#women
-exp(4.30866-0.34648)
-exp(4.30866-0.34648-0.24235+0.12996)
-m1 <- svyglm(gperokajRed ~ SurveyYear + Sex +
-               SurveyYear*Sex,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-#men
-exp(4.620899)
-exp(4.620899-0.325364)
-#women
-exp(4.620899-0.256947)
-exp(4.620899-0.256947-0.325364+0.154732)
-m1 <- svyglm(gperokajWhite ~ SurveyYear + Sex +
-               SurveyYear*Sex,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-#men
-exp(4.53128)
-exp(4.53128-0.07439)
-#women
-exp(4.53128-0.18695)
-exp(4.53128-0.18695-0.07439+0.03077)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#Age
-#Days
-m1 <- svyglm(MeatDays ~ SurveyYear + AgeG +
-               SurveyYear*AgeG,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- 1.1894705
-b1 <- -0.0340831
-b2.1 <- 0.0297407
-b2.2 <- -0.0230809
-b2.3 <- 0.0036768
-b2.4 <- -0.0028029
-b3.1 <- -0.0283212
-b3.2 <- -0.0675092
-b3.3 <- -0.0775060
-b3.4 <- -0.0319511
-#<=10
-exp(b0)
-exp(b0+b1)
-#11-17
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#18-40
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-#41-59
-exp(b0+b2.3)
-exp(b0+b2.3+b1+b3.3)
-#>=60
-exp(b0+b2.4)
-exp(b0+b2.4+b1+b3.4)
-m1 <- svyglm(ProcessedDays ~ SurveyYear + AgeG +
-               SurveyYear*AgeG,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- 0.633770
-b1 <- -0.089836
-b2.1 <- 0.039491
-b2.2 <- -0.041940
-b2.3 <- -0.085439
-b2.4 <- -0.150173
-b3.1 <- 0.045656
-b3.2 <- -0.023126
-b3.3 <- -0.049088
-b3.4 <- 0.007174
-#<=10
-exp(b0)
-exp(b0+b1)
-#11-17
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#18-40
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-#41-59
-exp(b0+b2.3)
-exp(b0+b2.3+b1+b3.3)
-#>=60
-exp(b0+b2.4)
-exp(b0+b2.4+b1+b3.4)
-m1 <- svyglm(RedDays ~ SurveyYear + AgeG +
-               SurveyYear*AgeG,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- 0.177370
-b1 <- -0.111996
-b2.1 <- 0.110808
-b2.2 <- 0.163762
-b2.3 <- 0.378715
-b2.4 <- 0.442790
-b3.1 <- 0.166835
-b3.2 <- -0.168771
-b3.3 <- -0.287373
-b3.4 <- -0.107989
-#<=10
-exp(b0)
-exp(b0+b1)
-#11-17
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#18-40
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-#41-59
-exp(b0+b2.3)
-exp(b0+b2.3+b1+b3.3)
-#>=60
-exp(b0+b2.4)
-exp(b0+b2.4+b1+b3.4)
-m1 <- svyglm(WhiteDays ~ SurveyYear + AgeG +
-               SurveyYear*AgeG,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- 0.369195
-b1 <- 0.137145
-b2.1 <- 0.150334
-b2.2 <- 0.125631
-b2.3 <- -0.114505
-b2.4 <- -0.237396
-b3.1 <- -0.042828
-b3.2 <- -0.053921
-b3.3 <- -0.003351
-b3.4 <- -0.033346
-#<=10
-exp(b0)
-exp(b0+b1)
-#11-17
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#18-40
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-#41-59
-exp(b0+b2.3)
-exp(b0+b2.3+b1+b3.3)
-#>=60
-exp(b0+b2.4)
-exp(b0+b2.4+b1+b3.4)
-m1 <- svyglm(NoMeatDays ~ SurveyYear + AgeG +
-               SurveyYear*AgeG,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- -3.360e-01
-b1 <- 1.433e-01
-b2.1 <- -1.494e-01
-b2.2 <- 9.975e-02
-b2.3 <- -1.708e-02
-b2.4 <- 1.278e-02
-b3.1 <- -1.122e-01
-b3.2 <- 1.880e-01
-b3.3 <- 2.592e-01
-b3.4 <- 1.108e-01
-#<=10
-exp(b0)
-exp(b0+b1)
-#11-17
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#18-40
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-#41-59
-exp(b0+b2.3)
-exp(b0+b2.3+b1+b3.3)
-#>=60
-exp(b0+b2.4)
-exp(b0+b2.4+b1+b3.4)
-
-
+#SEX
+exp_interaction_CI_sex <- function(response_var, design) {
+  model_formula <- as.formula(paste(response_var, "~ SurveyYear + Sex + SurveyYear * Sex"))
+  model <- svyglm(model_formula, family = poisson(link = "log"), design = design)
+  model_summary <- summary(model)
+  
+  betas <- coef(model)
+  se <- coef(model_summary)[, "Std. Error"]
+  
+  #combinations of coefficients
+  b_combinations <- c(
+    betas["(Intercept)"],
+    betas["(Intercept)"] + betas["SurveyYear11"],
+    betas["(Intercept)"] + betas["Sex"],
+    betas["(Intercept)"] + betas["Sex"] + betas["SurveyYear11"] + betas["SurveyYear11:Sex"]
+  )
+  
+  #standard errors for combinations
+  se_combinations <- c(
+    se["(Intercept)"],
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
+    sqrt(se["(Intercept)"]^2 + se["Sex"]^2),
+    sqrt(se["(Intercept)"]^2 + se["Sex"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:Sex"]^2)
+  )
+  
+  #exponentiated coefficients and CI for combinations
+  exp_coef <- exp(b_combinations)
+  lower_bound <- exp(b_combinations - 1.96 * se_combinations)
+  upper_bound <- exp(b_combinations + 1.96 * se_combinations)
+  
+  #data frame to present the results
+  result_table <- data.frame(
+    Group = c("M_Y1", "M_Y11", "F_Y1", "F_Y11"),
+    Beta = exp_coef,
+    Lower = lower_bound,
+    Upper = upper_bound
+  )
+  
+  return(result_table)
+}
+#days
+exp_interaction_CI_sex(response_var = "MeatDays", design = dat.design)
+exp_interaction_CI_sex(response_var = "ProcessedDays", design = dat.design)
+exp_interaction_CI_sex(response_var = "RedDays", design = dat.design)
+exp_interaction_CI_sex(response_var = "WhiteDays", design = dat.design)
+exp_interaction_CI_sex(response_var = "NoMeatDays", design = dat.design)
 #occasions
-m1 <- svyglm(avgMeatokaj ~ SurveyYear + AgeG +
-               SurveyYear*AgeG,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- 0.209181
-b1 <- -0.047309
-b2.1 <- 0.085918
-b2.2 <- 0.020069
-b2.3 <- 0.009435
-b2.4 <- -0.053317
-b3.1 <- 0.050396
-b3.2 <- -0.049978
-b3.3 <- -0.111845
-b3.4 <- -0.015472
-#<=10
-exp(b0)
-exp(b0+b1)
-#11-17
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#18-40
-exp(b0+b2.2)
-exp(b0+b2.2+b1-b3.2)
-#41-59
-exp(b0+b2.3)
-exp(b0+b2.3+b1-b3.3)
-#>=60
-exp(b0+b2.4)
-exp(b0+b2.4+b1-b3.4)
-m1 <- svyglm(avgProcessedokaj ~ SurveyYear + AgeG +
-               SurveyYear*AgeG,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- -0.526574
-b1 <- -0.123416
-b2.1 <- 0.082042
-b2.2 <- -0.083231
-b2.3 <- -0.101490
-b2.4 <- -0.215984
-b3.1 <- 0.066305
-b3.2 <- 0.062725
-b3.3 <- -0.010699
-b3.4 <- 0.073181
-#<=10
-exp(b0)
-exp(b0+b1)
-#11-17
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#18-40
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-#41-59
-exp(b0+b2.3)
-exp(b0+b2.3+b1+b3.3)
-#>=60
-exp(b0+b2.4)
-exp(b0+b2.4+b1+b3.4)
-m1 <- svyglm(avgRedokaj ~ SurveyYear + AgeG +
-               SurveyYear*AgeG,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- -1.151053
-b1 <- -0.098625
-b2.1 <- 0.159694
-b2.2 <- 0.214555
-b2.3 <- 0.485506
-b2.4 <- 0.494483
-b3.1 <- 0.129310
-b3.2 <- -0.194824
-b3.3 <- -0.405457
-b3.4 <- -0.126305
-#<=10
-exp(b0)
-exp(b0+b1)
-#11-17
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#18-40
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-#41-59
-exp(b0+b2.3)
-exp(b0+b2.3+b1+b3.3)
-#>=60
-exp(b0+b2.4)
-exp(b0+b2.4+b1+b3.4)
-m1 <- svyglm(avgWhiteokaj ~ SurveyYear + AgeG +
-               SurveyYear*AgeG,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- -0.889205
-b1 <- 0.184171
-b2.1 <- 0.136605
-b2.2 <- 0.130556
-b2.3 <- -0.123462
-b2.4 <- -0.218695
-b3.1 <- -0.057937
-b3.2 <- -0.074999
-b3.3 <- -0.030895
-b3.4 <- -0.139041
-#<=10
-exp(b0)
-exp(b0+b1)
-#11-17
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#18-40
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-#41-59
-exp(b0+b2.3)
-exp(b0+b2.3+b1+b3.3)
-#>=60
-exp(b0+b2.4)
-exp(b0+b2.4+b1+b3.4)
-
+exp_interaction_CI_sex(response_var = "avgMeatokaj", design = dat.design)
+exp_interaction_CI_sex(response_var = "avgProcessedokaj", design = dat.design)
+exp_interaction_CI_sex(response_var = "avgRedokaj", design = dat.design)
+exp_interaction_CI_sex(response_var = "avgWhiteokaj", design = dat.design)
 #portion size
-m1 <- svyglm(gperokajMeat ~ SurveyYear + AgeG +
-               SurveyYear*AgeG,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- 3.896593
-b1 <- -0.062788
-b2.1 <- 0.454402
-b2.2 <- 0.647417
-b2.3 <- 0.654171
-b2.4 <- 0.573507
-b3.1 <- -0.030292
-b3.2 <- -0.032417
-b3.3 <- -0.034108
-b3.4 <- -0.129732
-#<=10
-exp(b0)
-exp(b0+b1)
-#11-17
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
+exp_interaction_CI_sex(response_var = "gperokajMeat", design = dat.design)
+exp_interaction_CI_sex(response_var = "gperokajProcessed", design = dat.design)
+exp_interaction_CI_sex(response_var = "gperokajRed", design = dat.design)
+exp_interaction_CI_sex(response_var = "gperokajWhite", design = dat.design)
+
+
+
+#AGE
+
+#use this general structure for the following function:
+#b0 #intercept
+#b1 #survey year 11
+#b2.1 #ageG1
+#b2.2 #ageG2
+#b2.3 #ageG4
+#b2.4 #ageG5
+#b3.1 #ageG1 @ y11
+#b3.2 #ageG2 @y11
+#b3.3 #ageG4 @y11
+#b3.4 #ageG5 @y11
 #18-40
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-#41-59
-exp(b0+b2.3)
-exp(b0+b2.3+b1+b3.3)
-#>=60
-exp(b0+b2.4)
-exp(b0+b2.4+b1+b3.4)
-m1 <- svyglm(gperokajProcessed ~ SurveyYear + AgeG +
-               SurveyYear*AgeG,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- 3.845292
-b1 <- -0.132629
-b2.1 <- 0.287309
-b2.2 <- 0.362839
-b2.3 <- 0.417002
-b2.4 <- 0.213756
-b3.1 <- -0.004823
-b3.2 <- -0.039640
-b3.3 <- -0.086390
-b3.4 <- -0.036885
-#<=10
-exp(b0)
-exp(b0+b1)
+#exp(b0)
+#exp(b0+b1)
+#<10
+#exp(b0+b2.1)
+#exp(b0+b2.1+b1+b3.1)
 #11-17
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#18-40
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
+#exp(b0+b2.2)
+#exp(b0+b2.2+b1+b3.2)
 #41-59
-exp(b0+b2.3)
-exp(b0+b2.3+b1+b3.3)
+#exp(b0+b2.3)
+#exp(b0+b2.3+b1+b3.3)
 #>=60
-exp(b0+b2.4)
-exp(b0+b2.4+b1+b3.4)
-m1 <- svyglm(gperokajRed ~ SurveyYear + AgeG +
-               SurveyYear*AgeG,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- 3.772161
-b1 <- -0.139029
-b2.1 <- 0.502541
-b2.2 <- 0.863288
-b2.3 <- 0.785196
-b2.4 <- 0.765099
-b3.1 <- 0.069718
-b3.2 <- -0.189478
-b3.3 <- 0.008835
-b3.4 <- -0.181812
-#<=10
-exp(b0)
-exp(b0+b1)
-#11-17
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#18-40
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-#41-59
-exp(b0+b2.3)
-exp(b0+b2.3+b1+b3.3)
-#>=60
-exp(b0+b2.4)
-exp(b0+b2.4+b1+b3.4)
-m1 <- svyglm(gperokajWhite ~ SurveyYear + AgeG +
-               SurveyYear*AgeG,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- 3.913609
-b1 <- -0.005890
-b2.1 <- 0.467545
-b2.2 <- 0.604110
-b2.3 <- 0.630811
-b2.4 <- 0.528555
-b3.1 <- -0.156613
-b3.2 <- -0.016405
-b3.3 <- -0.053572
-b3.4 <- -0.077834
-#<=10
-exp(b0)
-exp(b0+b1)
-#11-17
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#18-40
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-#41-59
-exp(b0+b2.3)
-exp(b0+b2.3+b1+b3.3)
-#>=60
-exp(b0+b2.4)
-exp(b0+b2.4+b1+b3.4)
+#exp(b0+b2.4)
+#exp(b0+b2.4+b1+b3.4)
+
+#function to extract exponentiated beta coefficients and the respective confidence intervals
+#from the poisson models used for the age covariate analysis
+exp_interaction_CI <- function(response_var, design) {
+  model_formula <- as.formula(paste(response_var, "~ SurveyYear + AgeG + SurveyYear * AgeG"))
+  model <- svyglm(model_formula, family = poisson(link = "log"), design = design)
+  model_summary <- summary(model)
+  
+  betas <- coef(model)
+  se <- coef(model_summary)[, "Std. Error"]
+  
+  #combinations of coefficients
+  b_combinations <- c(
+    betas["(Intercept)"],
+    betas["(Intercept)"] + betas["SurveyYear11"],
+    betas["(Intercept)"] + betas["AgeG1"],
+    betas["(Intercept)"] + betas["AgeG1"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG1"],
+    betas["(Intercept)"] + betas["AgeG2"],
+    betas["(Intercept)"] + betas["AgeG2"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG2"],
+    betas["(Intercept)"] + betas["AgeG4"],
+    betas["(Intercept)"] + betas["AgeG4"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG4"],
+    betas["(Intercept)"] + betas["AgeG5"],
+    betas["(Intercept)"] + betas["AgeG5"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG5"]
+  )
+  
+  #standard errors for combinations
+  se_combinations <- c(
+    se["(Intercept)"],
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
+    se["AgeG1"],
+    sqrt(se["AgeG1"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG1"]^2),
+    se["AgeG2"],
+    sqrt(se["AgeG2"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG2"]^2),
+    se["AgeG4"],
+    sqrt(se["AgeG4"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG4"]^2),
+    se["AgeG5"],
+    sqrt(se["AgeG5"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG5"]^2)
+  )
+  
+  #exponentiated coefficients and CI for combinations
+  exp_coef <- exp(b_combinations)
+  lower_bound <- exp(b_combinations - 1.96 * se_combinations)
+  upper_bound <- exp(b_combinations + 1.96 * se_combinations)
+  
+  #data frame to present the results
+  result_table <- data.frame(
+    Group = c("18-40_Y1", "18-40_Y11", "<10_Y1", "<10_Y11", "11-17_Y1", "11-17_Y11", "41-59_Y1", "41-59_Y11", ">=60_Y1", ">=60_Y11"),
+    Beta = exp_coef,
+    Lower = lower_bound,
+    Upper = upper_bound
+  )
+  
+  return(result_table)
+}
+#days
+exp_interaction_CI(response_var = "MeatDays", design = dat.design)
+exp_interaction_CI(response_var = "ProcessedDays", design = dat.design)
+exp_interaction_CI(response_var = "RedDays", design = dat.design)
+exp_interaction_CI(response_var = "WhiteDays", design = dat.design)
+exp_interaction_CI(response_var = "NoMeatDays", design = dat.design)
+#occasions
+exp_interaction_CI(response_var = "avgMeatokaj", design = dat.design)
+exp_interaction_CI(response_var = "avgProcessedokaj", design = dat.design)
+exp_interaction_CI(response_var = "avgRedokaj", design = dat.design)
+exp_interaction_CI(response_var = "avgWhiteokaj", design = dat.design)
+#portion size
+exp_interaction_CI(response_var = "gperokajMeat", design = dat.design)
+exp_interaction_CI(response_var = "gperokajProcessed", design = dat.design)
+exp_interaction_CI(response_var = "gperokajRed", design = dat.design)
+exp_interaction_CI(response_var = "gperokajWhite", design = dat.design)
 
 
 
@@ -1622,10 +1244,10 @@ meat_days_prop_no_se <- meat_days_prop[, -se_cols]
 #transform  data from wide to long format
 meat_days_prop_long <- pivot_longer(meat_days_prop_no_se, cols = -SurveyYear, names_to = "MeatDays", values_to = "proportion")
 #create stacked bar plot
-plot1 <- ggplot(meat_days_prop_long, aes(x = SurveyYear, y = proportion, fill = str_remove(MeatDays, "prop_"))) + 
+plot1 <- ggplot(meat_days_prop_long, aes(x = SurveyYear, y = proportion, fill = factor(str_remove(MeatDays, "prop_"), levels = c("4", "3", "2", "1", "0")))) + 
   geom_col() +
-  scale_fill_brewer(palette = "Reds", direction = 1) +
-  labs(x = "Survey Year", y = "Proportion", fill = "Meat Days") +
+  scale_fill_brewer(palette = "Reds", direction = -1) +
+  labs(x = "Survey Year", y = "Proportion of participants", fill = "Meat Days") +
   scale_x_continuous(breaks = meat_days_prop$SurveyYear, labels = custom_x_labels) +
   geom_text(aes(label = paste0(round(proportion*100),"%")), 
             position = position_stack(vjust = 0.5)) +
@@ -1633,8 +1255,6 @@ plot1 <- ggplot(meat_days_prop_long, aes(x = SurveyYear, y = proportion, fill = 
   theme(text = element_text(family = "Avenir", size = 12)) +
   scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.25))
 plot1
-file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/MeatDaysProp.png"
-ggsave(file_path, plot1, width = 10, height = 8, dpi = 300)
 
 #processed meat days
 #create categorical variable for each level of Processed by SurveyYear
@@ -1653,10 +1273,10 @@ Processed_days_prop_no_se <- Processed_days_prop[, -se_cols]
 #transform data from wide to long format
 Processed_days_prop_long <- pivot_longer(Processed_days_prop_no_se, cols = -SurveyYear, names_to = "ProcessedDays", values_to = "proportion")
 #stacked bar plot
-plot2 <- ggplot(Processed_days_prop_long, aes(x = SurveyYear, y = proportion, fill = str_remove(ProcessedDays, "prop_"))) + 
+plot2 <- ggplot(Processed_days_prop_long, aes(x = SurveyYear, y = proportion, fill = factor(str_remove(ProcessedDays, "prop_"), levels = c("4", "3", "2", "1", "0")))) + 
   geom_col() +
-  scale_fill_brewer(palette = "Reds", direction = 1) +
-  labs(x = "Survey Year", y = "Proportion", fill = "Processed Days") +
+  scale_fill_brewer(palette = "Reds", direction = -1) +
+  labs(x = "Survey Year", y = "Proportion of participants", fill = "Processed Days") +
   scale_x_continuous(breaks = Processed_days_prop$SurveyYear, labels = custom_x_labels) +
   geom_text(aes(label = paste0(round(proportion*100),"%")), 
             position = position_stack(vjust = 0.5)) +
@@ -1664,8 +1284,6 @@ plot2 <- ggplot(Processed_days_prop_long, aes(x = SurveyYear, y = proportion, fi
   theme(text = element_text(family = "Avenir", size = 12)) +
   scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.25))
 plot2
-file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/ProcessedDaysProp.png"
-ggsave(file_path, plot2, width = 10, height = 8, dpi = 300)
 
 #red meat days
 #create categorical variable for each level of RedDays by SurveyYear
@@ -1684,10 +1302,10 @@ Red_days_prop_no_se <- Red_days_prop[, -se_cols]
 #transform the data from wide to long format
 Red_days_prop_long <- pivot_longer(Red_days_prop_no_se, cols = -SurveyYear, names_to = "RedDays", values_to = "proportion")
 #stacked bar plot
-plot3 <- ggplot(Red_days_prop_long, aes(x = SurveyYear, y = proportion, fill = str_remove(RedDays, "prop_"))) + 
+plot3 <- ggplot(Red_days_prop_long, aes(x = SurveyYear, y = proportion, fill = factor(str_remove(RedDays, "prop_"), levels = c("4", "3", "2", "1", "0")))) +
   geom_col() +
-  scale_fill_brewer(palette = "Reds", direction = 1) +
-  labs(x = "Survey Year", y = "Proportion", fill = "Red Days") +
+  scale_fill_brewer(palette = "Reds", direction = -1) +
+  labs(x = "Survey Year", y = "Proportion of participants", fill = "Red Days") +
   scale_x_continuous(breaks = Red_days_prop$SurveyYear, labels = custom_x_labels) +
   geom_text(aes(label = paste0(round(proportion*100),"%")), 
             position = position_stack(vjust = 0.5)) +
@@ -1695,8 +1313,6 @@ plot3 <- ggplot(Red_days_prop_long, aes(x = SurveyYear, y = proportion, fill = s
   theme(text = element_text(family = "Avenir", size = 12)) +
   scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.25))
 plot3
-file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/RedDaysProp.png"
-ggsave(file_path, plot3, width = 10, height = 8, dpi = 300)
 
 #white meat days
 #create categorical variable for each level of WhiteDays by SurveyYear
@@ -1715,10 +1331,10 @@ white_days_prop_no_se <- white_days_prop[, -se_cols]
 #transform the data from wide to long format
 white_days_prop_long <- pivot_longer(white_days_prop_no_se, cols = -SurveyYear, names_to = "WhiteDays", values_to = "proportion")
 #stacked bar plot
-plot4 <- ggplot(white_days_prop_long, aes(x = SurveyYear, y = proportion, fill = str_remove(WhiteDays, "prop_"))) + 
+plot4 <- ggplot(white_days_prop_long, aes(x = SurveyYear, y = proportion, fill = factor(str_remove(WhiteDays, "prop_"), levels = c("4", "3", "2", "1", "0")))) +
   geom_col() +
-  scale_fill_brewer(palette = "Reds", direction = 1) +
-  labs(x = "Survey Year", y = "Proportion", fill = "White Days") +
+  scale_fill_brewer(palette = "Reds", direction = -1) +
+  labs(x = "Survey Year", y = "Proportion of participants", fill = "White Days") +
   scale_x_continuous(breaks = white_days_prop$SurveyYear, labels = custom_x_labels) +
   geom_text(aes(label = paste0(round(proportion*100),"%")), 
             position = position_stack(vjust = 0.5)) +
@@ -1726,9 +1342,6 @@ plot4 <- ggplot(white_days_prop_long, aes(x = SurveyYear, y = proportion, fill =
   theme(text = element_text(family = "Avenir", size = 12)) +
   scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.25))
 plot4
-file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/WhiteDaysProp.png"
-ggsave(file_path, plot2, width = 10, height = 8, dpi = 300)
-
 
 #plot titles
 plot1 <- plot1 + ggtitle("Total meat") + theme(plot.title = element_text(hjust = 0.5))
@@ -1751,7 +1364,7 @@ combined_plot <- grid.arrange(plot1, plot2, plot3, plot4, ncol = 2, nrow = 2)
 combined_plot <- grid.arrange(combined_plot, plot1_legend, ncol = 2, widths = c(8, 1))
 combined_plot
 file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 3.png"
-ggsave(file_path, combined_plot, width = 20, height = 16, dpi = 600)
+ggsave(file_path, combined_plot, width = 16, height = 12, dpi = 600)
 
 
 
@@ -1763,7 +1376,7 @@ ggsave(file_path, combined_plot, width = 20, height = 16, dpi = 600)
 
 
 
-###############FIGURE 4###########################
+###############SI FIGURE 1###########################
 
 #function for survey year x axis
 custom_x_labels <- function(x) {
@@ -1889,7 +1502,7 @@ top_row <- cowplot::plot_grid(plot1, plot2, nrow = 1)
 bottom_row <- cowplot::plot_grid(plot3, legend_grob, nrow = 1, rel_widths = c(1, 1))
 combined_plot <- cowplot::plot_grid(top_row, bottom_row, ncol = 1, rel_heights = c(1, 1))
 print(combined_plot)
-ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 4.png", combined_plot, width = 8, height = 8, dpi = 600)
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/SI Figure 1.png", combined_plot, width = 16, height = 16, dpi = 600)
 
 
 
