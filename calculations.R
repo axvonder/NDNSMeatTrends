@@ -28,8 +28,14 @@ dat <- dat %>%
     Age >= 60 ~ 5,
     TRUE ~ 99
   ))
+#set reference group for age (18-40)
 dat$AgeG <- as.factor(dat$AgeG)
 dat$AgeG <- relevel(dat$AgeG, ref = 3)
+#eqv as factor
+dat$eqv <- as.factor(dat$eqv)
+#sex as factor
+dat$Sex <- as.factor(dat$Sex)
+dat$Sex <- factor(dat$Sex, levels = c(1, 2), labels = c("F", "M"))#had some problems, just makes things easier to change to letters
 #create variable for '% of SMTs that contain meat'
 #breakfast
 dat$BMeatokajperc <- dat$BMeatokaj/dat$Btotokaj
@@ -48,12 +54,12 @@ dat$DRedokajperc <- dat$DRedokaj/dat$Dtotokaj
 dat$DWhiteokajperc <- dat$DWhiteokaj/dat$Dtotokaj
 
 #set survey designs
-
 #make survey year factor or numeric, depending on analyses intended to be completed
 #make sure to re-set the survey design after you've changed surveyyear's variable type
 dat$SurveyYear <- as.factor(dat$SurveyYear)#run for regression analyses
-dat$SurveyYear <- as.numeric(dat$SurveyYear)#run for plots
+dat$SurveyYear <- as.numeric(dat$SurveyYear)#run for plots and also for calculating p value trends across all years (not just y1 & y11)
 
+#RERUN SURVEY DESIGN IF YOU'VE CHANGE ANY VARIABLES TO/FROM FACTOR/NUMERIC
 #specify survey weighting structure for GLM
 dat$fpc <- 15332
 dat.design <-
@@ -344,68 +350,10 @@ exp_summary(m1)
 
 
 ##########################SI TABLE 2 - analysis by covariates########################
-#SEX
-exp_interaction_CI_sex <- function(response_var, design) {
-  model_formula <- as.formula(paste(response_var, "~ SurveyYear + Sex + SurveyYear * Sex"))
-  model <- svyglm(model_formula, family = poisson(link = "log"), design = design)
-  model_summary <- summary(model)
-  
-  betas <- coef(model)
-  se <- coef(model_summary)[, "Std. Error"]
-  
-  #combinations of coefficients
-  b_combinations <- c(
-    betas["(Intercept)"],
-    betas["(Intercept)"] + betas["SurveyYear11"],
-    betas["(Intercept)"] + betas["Sex"],
-    betas["(Intercept)"] + betas["Sex"] + betas["SurveyYear11"] + betas["SurveyYear11:Sex"]
-  )
-  
-  #standard errors for combinations
-  se_combinations <- c(
-    se["(Intercept)"],
-    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
-    sqrt(se["(Intercept)"]^2 + se["Sex"]^2),
-    sqrt(se["(Intercept)"]^2 + se["Sex"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:Sex"]^2)
-  )
-  
-  #exponentiated coefficients and CI for combinations
-  exp_coef <- exp(b_combinations)
-  lower_bound <- exp(b_combinations - 1.96 * se_combinations)
-  upper_bound <- exp(b_combinations + 1.96 * se_combinations)
-  
-  #data frame to present the results
-  result_table <- data.frame(
-    Group = c("M_Y1", "M_Y11", "F_Y1", "F_Y11"),
-    Beta = exp_coef,
-    Lower = lower_bound,
-    Upper = upper_bound
-  )
-  
-  return(result_table)
-}
-#days
-exp_interaction_CI_sex(response_var = "MeatDays", design = dat.design)
-exp_interaction_CI_sex(response_var = "ProcessedDays", design = dat.design)
-exp_interaction_CI_sex(response_var = "RedDays", design = dat.design)
-exp_interaction_CI_sex(response_var = "WhiteDays", design = dat.design)
-exp_interaction_CI_sex(response_var = "NoMeatDays", design = dat.design)
-#occasions
-exp_interaction_CI_sex(response_var = "avgMeatokaj", design = dat.design)
-exp_interaction_CI_sex(response_var = "avgProcessedokaj", design = dat.design)
-exp_interaction_CI_sex(response_var = "avgRedokaj", design = dat.design)
-exp_interaction_CI_sex(response_var = "avgWhiteokaj", design = dat.design)
-#portion size
-exp_interaction_CI_sex(response_var = "gperokajMeat", design = dat.design)
-exp_interaction_CI_sex(response_var = "gperokajProcessed", design = dat.design)
-exp_interaction_CI_sex(response_var = "gperokajRed", design = dat.design)
-exp_interaction_CI_sex(response_var = "gperokajWhite", design = dat.design)
 
-
-
-#AGE
-
-#use this general structure for the following function:
+#use this general structure for the following functions to extract beta coefficient
+#estimates in their exponentiated form.
+#I give age as an example because that's the most complex. Sex & eqv are simpler
 #b0 #intercept
 #b1 #survey year 11
 #b2.1 #ageG1
@@ -432,16 +380,64 @@ exp_interaction_CI_sex(response_var = "gperokajWhite", design = dat.design)
 #exp(b0+b2.4)
 #exp(b0+b2.4+b1+b3.4)
 
-#function to extract exponentiated beta coefficients and the respective confidence intervals
-#from the poisson models used for the age covariate analysis
-exp_interaction_CI <- function(response_var, design) {
+#SEX
+exp_interaction_CI_sex <- function(response_var, design) {
+  model_formula <- as.formula(paste(response_var, "~ SurveyYear + Sex + SurveyYear * Sex"))
+  model <- svyglm(model_formula, family = poisson(link = "log"), design = design)
+  model_summary <- summary(model)
+  betas <- coef(model)
+  se <- coef(model_summary)[, "Std. Error"]
+  #combinations of coefficients
+  b_combinations <- c(
+    betas["(Intercept)"],
+    betas["(Intercept)"] + betas["SurveyYear11"],
+    betas["(Intercept)"] + betas["SexM"],
+    betas["(Intercept)"] + betas["SexM"] + betas["SurveyYear11"] + betas["SurveyYear11:SexM"]
+  )
+  #standard errors for combinations
+  se_combinations <- c(
+    se["(Intercept)"],
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
+    sqrt(se["(Intercept)"]^2 + se["SexM"]^2),
+    sqrt(se["(Intercept)"]^2 + se["SexM"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:SexM"]^2)
+  )
+  #exponentiated coefficients and CI for combinations
+  exp_coef <- round(exp(b_combinations), 2)
+  lower_bound <- round(exp(b_combinations - 1.96 * se_combinations), 2)
+  upper_bound <- round(exp(b_combinations + 1.96 * se_combinations), 2)
+  #data frame to present the results
+  result_table <- data.frame(
+    Group = c("M_Y1", "M_Y11", "F_Y1", "F_Y11"),
+    Beta = exp_coef,
+    Lower = lower_bound,
+    Upper = upper_bound
+  )
+  return(result_table)
+}
+#days
+exp_interaction_CI_sex(response_var = "MeatDays", design = dat.design)
+exp_interaction_CI_sex(response_var = "ProcessedDays", design = dat.design)
+exp_interaction_CI_sex(response_var = "RedDays", design = dat.design)
+exp_interaction_CI_sex(response_var = "WhiteDays", design = dat.design)
+exp_interaction_CI_sex(response_var = "NoMeatDays", design = dat.design)
+#occasions
+exp_interaction_CI_sex(response_var = "avgMeatokaj", design = dat.design)
+exp_interaction_CI_sex(response_var = "avgProcessedokaj", design = dat.design)
+exp_interaction_CI_sex(response_var = "avgRedokaj", design = dat.design)
+exp_interaction_CI_sex(response_var = "avgWhiteokaj", design = dat.design)
+#portion size
+exp_interaction_CI_sex(response_var = "gperokajMeat", design = dat.design)
+exp_interaction_CI_sex(response_var = "gperokajProcessed", design = dat.design)
+exp_interaction_CI_sex(response_var = "gperokajRed", design = dat.design)
+exp_interaction_CI_sex(response_var = "gperokajWhite", design = dat.design)
+
+#AGE
+exp_interaction_CI_age <- function(response_var, design) {
   model_formula <- as.formula(paste(response_var, "~ SurveyYear + AgeG + SurveyYear * AgeG"))
   model <- svyglm(model_formula, family = poisson(link = "log"), design = design)
   model_summary <- summary(model)
-  
   betas <- coef(model)
   se <- coef(model_summary)[, "Std. Error"]
-  
   #combinations of coefficients
   b_combinations <- c(
     betas["(Intercept)"],
@@ -455,7 +451,6 @@ exp_interaction_CI <- function(response_var, design) {
     betas["(Intercept)"] + betas["AgeG5"],
     betas["(Intercept)"] + betas["AgeG5"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG5"]
   )
-  
   #standard errors for combinations
   se_combinations <- c(
     se["(Intercept)"],
@@ -469,12 +464,10 @@ exp_interaction_CI <- function(response_var, design) {
     se["AgeG5"],
     sqrt(se["AgeG5"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG5"]^2)
   )
-  
   #exponentiated coefficients and CI for combinations
-  exp_coef <- exp(b_combinations)
-  lower_bound <- exp(b_combinations - 1.96 * se_combinations)
-  upper_bound <- exp(b_combinations + 1.96 * se_combinations)
-  
+  exp_coef <- round(exp(b_combinations), 2)
+  lower_bound <- round(exp(b_combinations - 1.96 * se_combinations), 2)
+  upper_bound <- round(exp(b_combinations + 1.96 * se_combinations), 2)
   #data frame to present the results
   result_table <- data.frame(
     Group = c("18-40_Y1", "18-40_Y11", "<10_Y1", "<10_Y11", "11-17_Y1", "11-17_Y11", "41-59_Y1", "41-59_Y11", ">=60_Y1", ">=60_Y11"),
@@ -482,373 +475,79 @@ exp_interaction_CI <- function(response_var, design) {
     Lower = lower_bound,
     Upper = upper_bound
   )
-  
   return(result_table)
 }
 #days
-exp_interaction_CI(response_var = "MeatDays", design = dat.design)
-exp_interaction_CI(response_var = "ProcessedDays", design = dat.design)
-exp_interaction_CI(response_var = "RedDays", design = dat.design)
-exp_interaction_CI(response_var = "WhiteDays", design = dat.design)
-exp_interaction_CI(response_var = "NoMeatDays", design = dat.design)
+exp_interaction_CI_age(response_var = "MeatDays", design = dat.design)
+exp_interaction_CI_age(response_var = "ProcessedDays", design = dat.design)
+exp_interaction_CI_age(response_var = "RedDays", design = dat.design)
+exp_interaction_CI_age(response_var = "WhiteDays", design = dat.design)
+exp_interaction_CI_age(response_var = "NoMeatDays", design = dat.design)
 #occasions
-exp_interaction_CI(response_var = "avgMeatokaj", design = dat.design)
-exp_interaction_CI(response_var = "avgProcessedokaj", design = dat.design)
-exp_interaction_CI(response_var = "avgRedokaj", design = dat.design)
-exp_interaction_CI(response_var = "avgWhiteokaj", design = dat.design)
+exp_interaction_CI_age(response_var = "avgMeatokaj", design = dat.design)
+exp_interaction_CI_age(response_var = "avgProcessedokaj", design = dat.design)
+exp_interaction_CI_age(response_var = "avgRedokaj", design = dat.design)
+exp_interaction_CI_age(response_var = "avgWhiteokaj", design = dat.design)
 #portion size
-exp_interaction_CI(response_var = "gperokajMeat", design = dat.design)
-exp_interaction_CI(response_var = "gperokajProcessed", design = dat.design)
-exp_interaction_CI(response_var = "gperokajRed", design = dat.design)
-exp_interaction_CI(response_var = "gperokajWhite", design = dat.design)
+exp_interaction_CI_age(response_var = "gperokajMeat", design = dat.design)
+exp_interaction_CI_age(response_var = "gperokajProcessed", design = dat.design)
+exp_interaction_CI_age(response_var = "gperokajRed", design = dat.design)
+exp_interaction_CI_age(response_var = "gperokajWhite", design = dat.design)
 
-
-
-
-
-
-
-
-
-
-
-#eqv
-m1 <- svyglm(MeatDays ~ SurveyYear + eqv +
-               SurveyYear*eqv,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- 1.1817281
-b1 <- -0.0439812
-b2.1 <- 0.0365458
-b2.2 <- 0.0157946
-b3.1 <- -0.0228805
-b3.2 <- -0.0523464
-#1st tertile (highest)
-exp(b0)
-exp(b0+b1)
-#2nd tertile (middle)
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#3rd tertile (lowest)
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-m1 <- svyglm(ProcessedDays ~ SurveyYear + eqv +
-               SurveyYear*eqv,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- 0.584166
-b1 <- -0.137938
-b2.1 <- 0.028083
-b2.2 <- 0.001426
-b3.1 <- 0.112661
-b3.2 <- 0.040929
-#1st tertile (highest)
-exp(b0)
-exp(b0+b1)
-#2nd tertile (middle)
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#3rd tertile (lowest)
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-m1 <- svyglm(RedDays ~ SurveyYear + eqv +
-               SurveyYear*eqv,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- 0.458500
-b1 <- -0.218373
-b2.1 <- -0.014614
-b2.2 <- 0.003518
-b3.1 <- 0.053163
-b3.2 <- -0.102749
-#1st tertile (highest)
-exp(b0)
-exp(b0+b1)
-#2nd tertile (middle)
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#3rd tertile (lowest)
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-m1 <- svyglm(WhiteDays ~ SurveyYear + eqv +
-               SurveyYear*eqv,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- 0.425166
-b1 <- -0.007130
-b2.1 <- -0.118976
-b2.2 <- -0.041638
-b3.1 <- 0.199113
-b3.2 <- 0.106002
-#1st tertile (highest)
-exp(b0)
-exp(b0+b1)
-#2nd tertile (middle)
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#3rd tertile (lowest)
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-m1 <- svyglm(NoMeatDays ~ SurveyYear + eqv +
-               SurveyYear*eqv,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- -0.30111
-b1 <- 0.17358
-b2.1 <- -0.17910
-b2.2 <- -0.07272
-b3.1 <- 0.12911
-b3.2 <- 0.19245
-#1st tertile (highest)
-exp(b0)
-exp(b0+b1)
-#2nd tertile (middle)
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#3rd tertile (lowest)
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-
-
+#EQV
+exp_interaction_CI_eqv <- function(response_var, design) {
+  model_formula <- as.formula(paste(response_var, "~ SurveyYear + eqv + SurveyYear * eqv"))
+  model <- svyglm(model_formula, family = poisson(link = "log"), design = design)
+  model_summary <- summary(model)
+  betas <- coef(model)
+  se <- coef(model_summary)[, "Std. Error"]
+  #combinations of coefficients
+  b_combinations <- c(
+    betas["(Intercept)"],
+    betas["(Intercept)"] + betas["eqv2"],
+    betas["(Intercept)"] + betas["eqv3"],
+    betas["(Intercept)"] + betas["SurveyYear11"],
+    betas["(Intercept)"] + betas["SurveyYear11"] + betas["eqv2"] + betas["SurveyYear11:eqv2"],
+    betas["(Intercept)"] + betas["SurveyYear11"] + betas["eqv3"] + betas["SurveyYear11:eqv3"]
+  )
+  #standard errors for combinations
+  se_combinations <- c(
+    se["(Intercept)"],
+    sqrt(se["(Intercept)"]^2 + se["eqv2"]^2),
+    sqrt(se["(Intercept)"]^2 + se["eqv3"]^2),
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2 + se["eqv2"]^2 + se["SurveyYear11:eqv2"]^2),
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2 + se["eqv3"]^2 + se["SurveyYear11:eqv3"]^2)
+  )
+  #exponentiated coefficients and CI for combinations
+  exp_coef <- round(exp(b_combinations), 2)
+  lower_bound <- round(exp(b_combinations - 1.96 * se_combinations), 2)
+  upper_bound <- round(exp(b_combinations + 1.96 * se_combinations), 2)
+  #data frame to present the results
+  result_table <- data.frame(
+    Group = c("eqv1_Y1", "eqv2_Y1", "eqv3_Y1", "eqv1_Y11", "eqv2_Y11", "eqv3_Y11"),
+    Beta = exp_coef,
+    Lower = lower_bound,
+    Upper = upper_bound
+  )
+  return(result_table)
+}
+#days
+exp_interaction_CI_eqv(response_var = "MeatDays", design = dat.design)
+exp_interaction_CI_eqv(response_var = "ProcessedDays", design = dat.design)
+exp_interaction_CI_eqv(response_var = "RedDays", design = dat.design)
+exp_interaction_CI_eqv(response_var = "WhiteDays", design = dat.design)
+exp_interaction_CI_eqv(response_var = "NoMeatDays", design = dat.design)
 #occasions
-m1 <- svyglm(avgMeatokaj ~ SurveyYear + eqv +
-               SurveyYear*eqv,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- 0.252250
-b1 <- -0.112100
-b2.1 <- -0.033772
-b2.2 <- -0.023469
-b3.1 <- 0.098460
-b3.2 <- -0.010679
-#1st tertile (highest)
-exp(b0)
-exp(b0+b1)
-#2nd tertile (middle)
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#3rd tertile (lowest)
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-m1 <- svyglm(avgProcessedokaj ~ SurveyYear + eqv +
-               SurveyYear*eqv,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- -5.806e-01
-b1 <- -1.335e-01
-b2.1 <- -3.039e-02
-b2.2 <- -3.804e-03
-b3.1 <- 1.685e-01
-b3.2 <- 3.316e-02
-#1st tertile (highest)
-exp(b0)
-exp(b0+b1)
-#2nd tertile (middle)
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#3rd tertile (lowest)
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-m1 <- svyglm(avgRedokaj ~ SurveyYear + eqv +
-               SurveyYear*eqv,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- -0.80043
-b1 <- -0.25798
-b2.1 <- -0.04190
-b2.2 <- -0.01643
-b3.1 <- 0.11597
-b3.2 <- -0.11030
-#1st tertile (highest)
-exp(b0)
-exp(b0+b1)
-#2nd tertile (middle)
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#3rd tertile (lowest)
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-m1 <- svyglm(avgWhiteokaj ~ SurveyYear + eqv +
-               SurveyYear*eqv,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- -0.8370416
-b1 <- 0.0225800
-b2.1 <- -0.1052534
-b2.2 <- -0.0516702
-b3.1 <- 0.1407563
-b3.2 <- 0.1139817
-#1st tertile (highest)
-exp(b0)
-exp(b0+b1)
-#2nd tertile (middle)
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#3rd tertile (lowest)
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-
-
+exp_interaction_CI_eqv(response_var = "avgMeatokaj", design = dat.design)
+exp_interaction_CI_eqv(response_var = "avgProcessedokaj", design = dat.design)
+exp_interaction_CI_eqv(response_var = "avgRedokaj", design = dat.design)
+exp_interaction_CI_eqv(response_var = "avgWhiteokaj", design = dat.design)
 #portion size
-m1 <- svyglm(gperokajMeat ~ SurveyYear + eqv +
-               SurveyYear*eqv,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- 4.395762
-b1 <- -0.155880
-b2.1 <- 0.104690
-b2.2 <- 0.059354
-b3.1 <- 0.058441
-b3.2 <- 0.065801
-#1st tertile (highest)
-exp(b0)
-exp(b0+b1)
-#2nd tertile (middle)
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#3rd tertile (lowest)
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-m1 <- svyglm(gperokajProcessed ~ SurveyYear + eqv +
-               SurveyYear*eqv,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- 4.1851402
-b1 <- -0.2386114
-b2.1 <- 0.0083387
-b2.2 <- -0.1055891
-b3.1 <- 0.0735354
-b3.2 <- 0.1114715
-#1st tertile (highest)
-exp(b0)
-exp(b0+b1)
-#2nd tertile (middle)
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#3rd tertile (lowest)
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-m1 <- svyglm(gperokajRed ~ SurveyYear + eqv +
-               SurveyYear*eqv,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- 4.328
-b1 <- -1.178e-01
-b2.1 <- 2.136e-01
-b2.2 <- 2.115e-01
-b3.1 <- -1.344e-01
-b3.2 <- -1.645e-01
-#1st tertile (highest)
-exp(b0)
-exp(b0+b1)
-#2nd tertile (middle)
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#3rd tertile (lowest)
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-m1 <- svyglm(gperokajWhite ~ SurveyYear + eqv +
-               SurveyYear*eqv,
-             family=poisson(link = "log"), dat.design)
-summary(m1) #exponentiate
-b0 <- 4.359230
-b1 <- -0.074787
-b2.1 <- 0.093906
-b2.2 <- 0.141523
-b3.1 <- 0.088421
-b3.2 <- -0.065769
-#1st tertile (highest)
-exp(b0)
-exp(b0+b1)
-#2nd tertile (middle)
-exp(b0+b2.1)
-exp(b0+b2.1+b1+b3.1)
-#3rd tertile (lowest)
-exp(b0+b2.2)
-exp(b0+b2.2+b1+b3.2)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+exp_interaction_CI_eqv(response_var = "gperokajMeat", design = dat.design)
+exp_interaction_CI_eqv(response_var = "gperokajProcessed", design = dat.design)
+exp_interaction_CI_eqv(response_var = "gperokajRed", design = dat.design)
+exp_interaction_CI_eqv(response_var = "gperokajWhite", design = dat.design)
 
 
 #######################DECOMPOSITION ANALYSIS###############
@@ -1577,97 +1276,6 @@ ggplot(dat, aes(x=gperokajWhite)) + geom_histogram(binwidth=.5) #excluded 3,232
 
 
 
-
-######################SANDBOX####################
-
-# Create a new categorical variable based on "avgMeatokaj"
-dat$Meatokajcat <- cut(dat$avgMeatokaj, 
-                       breaks = c(-Inf, 1, 1.5, 2, Inf), 
-                       labels = c("<1", "1-1.5", "1.5-2", ">2"), 
-                       right = FALSE, 
-                       include.lowest = TRUE)
-#
-survey_design <- svydesign(id = ~area, strata = ~astrata5, weights = ~wti, data = dat)
-# categorical variable as factor
-dat$Meatokajcat <- as.factor(dat$Meatokajcat)
-# Calculate the weighted proportions for each category, by year
-weighted_proportions_by_year <- svyby(~Meatokajcat, ~SurveyYear, survey_design, svymean)
-#subset dat, check calculations
-dat_subset <- dat[, c("seriali", "avgMeatokaj", "Meatokajcat")]
-# Convert the weighted_proportions_by_year to a data frame
-weighted_proportions_by_year_df <- as.data.frame(weighted_proportions_by_year)
-# Remove the standard error columns
-weighted_proportions_no_se <- weighted_proportions_by_year_df %>%
-  select(-starts_with("se."))
-#long data
-long_weighted_proportions <- weighted_proportions_no_se %>%
-  pivot_longer(cols = starts_with("Meatokajcat"), 
-               names_to = "Category", 
-               values_to = "Proportion", 
-               names_prefix = "Meatokajcat")
-#with % text (excluding bottom 2 categories because they muddied the text a bit and are all <2%)
-plot <- ggplot(long_weighted_proportions, aes(x = SurveyYear, y = Proportion, fill = factor(Category, levels = unique(Category)))) +
-  geom_bar(stat = "identity", position = "stack") +
-  geom_text(aes(label = paste0(round(Proportion*100),"%")), position = position_stack(vjust = 0.5)) +
-  labs(title = NULL, x = "Survey Year", y = "Proportion", fill = "Meat occasions/day") +
-  theme_classic() +
-  scale_fill_manual(values = brewer.pal(4, "Reds"), labels = c("<1", "1-1.5", "1.5-2", ">2")) +
-  scale_x_continuous(breaks = unique(long_weighted_proportions$SurveyYear)) +
-  theme(text = element_text(family = "Avenir", size = 12))
-
-plot
-#thinking about combining the bottom two categories since they both contribute so little to the overall proportion
-file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/MeatOccasionsProp.png"
-# Save plot to file
-ggsave(file_path, plot, width = 10, height = 8, dpi = 300)
-
-
-
-
-
-
-
-
-# Create a new categorical variable based on "avgMeatokaj"
-dat$Processedokajcat <- cut(dat$avgProcessedokaj, 
-                       breaks = c(-Inf, 0.25, 0.50, 0.75, Inf), 
-                       labels = c("<1", "1-2", "2-3", ">3"), 
-                       right = FALSE, 
-                       include.lowest = TRUE)
-#
-survey_design <- svydesign(id = ~area, strata = ~astrata5, weights = ~wti, data = dat)
-# categorical variable as factor
-dat$Processedokajcat <- as.factor(dat$Processedokajcat)
-# Calculate the weighted proportions for each category, by year
-weighted_proportions_by_year <- svyby(~Processedokajcat, ~SurveyYear, survey_design, svymean)
-#subset dat, check calculations
-dat_subset <- dat[, c("seriali", "avgProcessedokaj", "Meatokajcat")]
-# Convert the weighted_proportions_by_year to a data frame
-weighted_proportions_by_year_df <- as.data.frame(weighted_proportions_by_year)
-# Remove the standard error columns
-weighted_proportions_no_se <- weighted_proportions_by_year_df %>%
-  select(-starts_with("se."))
-#long data
-long_weighted_proportions <- weighted_proportions_no_se %>%
-  pivot_longer(cols = starts_with("Processedokajcat"), 
-               names_to = "Category", 
-               values_to = "Proportion", 
-               names_prefix = "Processedokajcat")
-#with % text (excluding bottom 2 categories because they muddied the text a bit and are all <2%)
-plot <- ggplot(long_weighted_proportions, aes(x = SurveyYear, y = Proportion, fill = factor(Category, levels = unique(Category)))) +
-  geom_bar(stat = "identity", position = "stack") +
-  geom_text(aes(label = paste0(round(Proportion*100),"%")), position = position_stack(vjust = 0.5)) +
-  labs(title = NULL, x = "Survey Year", y = "Proportion", fill = "Meat occasions/4-day diary period") +
-  theme_classic() +
-  scale_fill_manual(values = brewer.pal(4, "Reds"), labels = c("<1", "1-2", "2-3", ">3")) +
-  scale_x_continuous(breaks = unique(long_weighted_proportions$SurveyYear)) +
-  theme(text = element_text(family = "Avenir", size = 12))
-
-plot
-#thinking about combining the bottom two categories since they both contribute so little to the overall proportion
-file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/MeatOccasionsProp.png"
-# Save plot to file
-ggsave(file_path, plot, width = 10, height = 8, dpi = 300)
 
 
 
