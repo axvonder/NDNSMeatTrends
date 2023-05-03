@@ -47,7 +47,7 @@ calculations.R: An R script that performs the statistical analysis and generates
 
 ## 5. Usage
 
-Run the R scripts in the src/ folder in the following order:
+Run the R scripts in the following order:
 
 1. transformation.R: Cleans, preprocesses, transforms the raw NDNS data.
 2. combining.R: Combines the transformed dataset (that only works with diet data) with other individual-level and household-level NDNS datasets.
