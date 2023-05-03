@@ -5,7 +5,7 @@ library(janitor)
 library(dplyr)
 #set wd
 setwd("/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data")
-# Upload datasets
+#upload datasets (raw diet data from NDNS; access instructions in publication)
 file_names <- c("ndns_rp_yr1-4a_foodleveldietarydata_uk_v2.csv",
                 "ndns_rp_yr5-6a_foodleveldietarydata_v2.csv",
                 "ndns_rp_yr7-8a_foodleveldietarydata.csv",

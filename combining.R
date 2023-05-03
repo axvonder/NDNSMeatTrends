@@ -2,7 +2,7 @@ library(dplyr)
 library(tidyverse)
 #set wd
 setwd("/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data")
-#upload datasets
+#upload datasets (raw data from NDNS; access instructions in publication)
 mod <- read.csv('final.csv')
 yr1_4 <- read.csv('ndns_rp_yr1-4a_indiv_uk.csv')
 yr5_6 <- read.csv('ndns_rp_yr5-6a_indiv.csv')
