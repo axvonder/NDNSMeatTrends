@@ -35,7 +35,7 @@ dat$AgeG <- relevel(dat$AgeG, ref = 3)
 dat$eqv <- as.factor(dat$eqv)
 #sex as factor
 dat$Sex <- as.factor(dat$Sex)
-dat$Sex <- factor(dat$Sex, levels = c(1, 2), labels = c("F", "M"))#had some problems, just makes things easier to change to letters
+dat$Sex <- factor(dat$Sex, levels = c(1, 2), labels = c("M", "F"))#had some problems, just makes things easier to change to letters
 #create variable for '% of SMTs that contain meat'
 #breakfast
 dat$BMeatokajperc <- dat$BMeatokaj/dat$Btotokaj
@@ -1297,3 +1297,29 @@ ggplot(dat, aes(x=gperokajWhite)) + geom_histogram(binwidth=.5) #excluded 3,232
 
 
 
+
+
+
+
+
+
+
+
+
+##############plot effecrts for covariate analysis###############
+
+m1 <- svyglm(gperokajMeat~ SurveyYear + Sex + SurveyYear * Sex,
+             family = poisson(link = "log"), dat.design)
+plot(allEffects(m1), multiline=T, confint = list(style = "auto"))
+
+
+
+
+
+
+
+
+#####################MISC##########################3
+# get variable names of the data (to make data dictionary)
+variable_names <- names(dat)
+print(variable_names)
