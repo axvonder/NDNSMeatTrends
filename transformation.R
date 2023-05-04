@@ -29,7 +29,7 @@ for (year_num in 1:11) {
   ult$SurveyYear <- ifelse(ult$SurveyYear == paste("NDNS Year", year_num), year_num, ult$SurveyYear)
 }
 table(ult$SurveyYear)
-#convert mealtime to useable time variable
+#convert mealtime to usable time variable
 time<- c(ult$MealTime)
 ult$MealTime <- chron(times = time)
 #check
