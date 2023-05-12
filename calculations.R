@@ -8,6 +8,8 @@ library(RColorBrewer)
 library(scales)
 library(gridExtra)
 library(cowplot)
+library(boot)
+library(MASS)
 #set wd
 setwd("/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data")
 #upload datasets
@@ -73,6 +75,43 @@ dat.design <-
 
 #create the survey design object (for descriptive)
 survey_design <- svydesign(id = ~area, strata = ~astrata5, weights = ~wti, data = dat)
+
+######################TEST DISTRIBUTION##################
+#function to perform Shapiro-Wilk test on a subset
+#since the dataset is bigger than 5000, running the test separately for each survey year
+#store bootstrapped p values
+p_values <- vector("numeric", length = length(unique(dat$SurveyYear)))
+set.seed(628) #emily's favourite number
+for (i in 1:length(unique(dat$SurveyYear))) {
+  subset_data <- dat[dat$SurveyYear == unique(dat$SurveyYear)[i], ]
+  
+  #shapiro-Wilk test on the subset data
+  result <- shapiro.test(subset_data$gperokajMeat)
+  
+  #store the p-values
+  p_values[i] <- result$p.value
+}
+print(p_values)
+
+#let's try a sqrt transform
+#store bootstrapped p values
+p_values <- vector("numeric", length = length(unique(dat$SurveyYear)))
+set.seed(628) #emily's favourite number
+for (i in 1:length(unique(dat$SurveyYear))) {
+  subset_data <- dat[dat$SurveyYear == unique(dat$SurveyYear)[i], ]
+  
+  #sqrt var
+  sqrt_var <- sqrt(subset_data$gperokajMeat)
+  
+  #shapiro-Wilk test on the subset data
+  result <- shapiro.test(sqrt_var)
+  
+  #store the p-values
+  p_values[i] <- result$p.value
+}
+print(p_values)
+
+
 
 
 
@@ -1323,3 +1362,5 @@ plot(allEffects(m1), multiline=T, confint = list(style = "auto"))
 # get variable names of the data (to make data dictionary)
 variable_names <- names(dat)
 print(variable_names)
+
+#look at distribution of meat at mealtimes

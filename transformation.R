@@ -411,6 +411,56 @@ dat <- dat %>%
        DsumMeatg, totProcessedokaj, totRedokaj, totWhiteokaj, totMeatokaj, totNoMeatokaj,
        Btotokaj, Ltotokaj, Dtotokaj,
        .direction = "up")
+#look at distribution of meat occasions
+# Filter for non-zero meat consumption
+test <- dat %>%
+  filter(Meatgperokaj > 0)
+
+# Convert MealTime to hours from seconds for easier interpretation
+test$MealTime <- test$MealTime / 3600
+
+# Print the range of MealTime
+print(range(test$MealTime))
+
+# Assign meal blocks
+test <- test %>%
+  mutate(MealBlock = case_when(
+    (MealTime >= 6 & MealTime <= 10) ~ "Breakfast",
+    (MealTime >= 10.5 & MealTime <= 14.5) ~ "Lunch",
+    (MealTime >= 16.5 & MealTime <= 21.5) ~ "Dinner",
+    TRUE ~ "Other"
+  ))
+
+# Calculate the proportion of eating occasions for each meal block
+proportion <- test %>%
+  group_by(MealBlock) %>%
+  summarise(Proportion = n() / nrow(test) * 100)
+
+# Print the proportion of eating occasions for each meal block
+print(proportion)
+# Create a histogram of eating occasions throughout the day with meal blocks overlaid
+ggplot(test, aes(x = MealTime)) +
+  geom_histogram(bins = 24, fill = "lightblue", color = "black") +
+  geom_vline(xintercept = c(6, 10, 10.5, 14.5, 16.5, 21.5), linetype = "dashed", color = "red", size = 1) +
+  labs(x = "Time of day (hours)", y = "Number of eating occasions",
+       title = "Distribution of eating occasions throughout the day") +
+  theme_minimal()
+
+# Calculate the total meat consumption for each meal block
+total_consumption <- test %>%
+  group_by(MealBlock) %>%
+  summarise(TotalConsumption = sum(Meatgperokaj))
+
+# Calculate the total meat consumption
+total_meat_consumption <- sum(test$Meatgperokaj)
+
+# Calculate the proportion of total consumption for each meal block
+total_consumption <- total_consumption %>%
+  mutate(ProportionOfTotal = TotalConsumption / total_meat_consumption * 100)
+
+# Print the proportion of total consumption for each meal block
+print(total_consumption)
+
 #only 1 row per participant
 dat <- dat %>%
   #only unique IDs
