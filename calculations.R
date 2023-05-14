@@ -559,9 +559,17 @@ exp_interaction_CI_sex(response_var = "avgRedokaj", design = dat.design)
 exp_interaction_CI_sex(response_var = "avgWhiteokaj", design = dat.design)
 #portion size
 glm_interaction_CI_sex(response_var = "gperokajMeat", design = dat.design)
+m1 <- svyglm(gperokajMeat ~ SurveyYear + Sex + SurveyYear * Sex, dat.design)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 glm_interaction_CI_sex(response_var = "gperokajProcessed", design = dat.design)
+m1 <- svyglm(gperokajProcessed ~ SurveyYear + Sex + SurveyYear * Sex, dat.design)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 glm_interaction_CI_sex(response_var = "gperokajRed", design = dat.design)
+m1 <- svyglm(gperokajRed ~ SurveyYear + Sex + SurveyYear * Sex, dat.design)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 glm_interaction_CI_sex(response_var = "gperokajWhite", design = dat.design)
+m1 <- svyglm(gperokajWhite ~ SurveyYear + Sex + SurveyYear * Sex, dat.design)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 
 #AGE
 exp_interaction_CI_age <- function(response_var, design) {
@@ -666,9 +674,17 @@ exp_interaction_CI_age(response_var = "avgRedokaj", design = dat.design)
 exp_interaction_CI_age(response_var = "avgWhiteokaj", design = dat.design)
 #portion size
 glm_interaction_CI_age(response_var = "gperokajMeat", design = dat.design)
+m1 <- svyglm(gperokajMeat ~ SurveyYear + AgeG + SurveyYear * AgeG, dat.design)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 glm_interaction_CI_age(response_var = "gperokajProcessed", design = dat.design)
+m1 <- svyglm(gperokajProcessed ~ SurveyYear + AgeG + SurveyYear * AgeG, dat.design)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 glm_interaction_CI_age(response_var = "gperokajRed", design = dat.design)
+m1 <- svyglm(gperokajRed ~ SurveyYear + AgeG + SurveyYear * AgeG, dat.design)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 glm_interaction_CI_age(response_var = "gperokajWhite", design = dat.design)
+m1 <- svyglm(gperokajWhite ~ SurveyYear + AgeG + SurveyYear * AgeG, dat.design)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 
 #EQV
 exp_interaction_CI_eqv <- function(response_var, design) {
@@ -757,9 +773,17 @@ exp_interaction_CI_eqv(response_var = "avgRedokaj", design = dat.design)
 exp_interaction_CI_eqv(response_var = "avgWhiteokaj", design = dat.design)
 #portion size
 glm_interaction_CI_eqv(response_var = "gperokajMeat", design = dat.design)
+m1 <- svyglm(gperokajMeat ~ SurveyYear + eqv + SurveyYear * eqv, dat.design)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 glm_interaction_CI_eqv(response_var = "gperokajProcessed", design = dat.design)
+m1 <- svyglm(gperokajProcessed ~ SurveyYear + eqv + SurveyYear * eqv, dat.design)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 glm_interaction_CI_eqv(response_var = "gperokajRed", design = dat.design)
+m1 <- svyglm(gperokajRed ~ SurveyYear + eqv + SurveyYear * eqv, dat.design)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 glm_interaction_CI_eqv(response_var = "gperokajWhite", design = dat.design)
+m1 <- svyglm(gperokajWhite ~ SurveyYear + eqv + SurveyYear * eqv, dat.design)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 
 
 #######################DECOMPOSITION ANALYSIS###############
