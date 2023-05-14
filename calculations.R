@@ -275,14 +275,19 @@ exp_summary(m1)
 ##g per occasion##
 m1 <- svyglm(gperokajMeat ~ SurveyYear, dat.design)
 lm_summary(m1)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 m1 <- svyglm(gperokajProcessed ~ SurveyYear, dat.design)
 lm_summary(m1)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 m1 <- svyglm(gperokajRed ~ SurveyYear, dat.design)
 lm_summary(m1)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 m1 <- svyglm(gperokajWhite ~ SurveyYear, dat.design)
 lm_summary(m1)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 m1 <- svyglm(okajTotalGrams ~ SurveyYear, dat.design)
 lm_summary(m1)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 
 
 
@@ -313,6 +318,9 @@ table(dat$SurveyYear)
 
 #########################SI TABLE 1 - STM ANALYSIS########################
 #BREAKFAST
+#overall n values
+sum(complete.cases(dat.design$variables$BMeatokaj[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$BMeatokaj[dat.design$variables$SurveyYear == 11])) #n values year 11
 ##Meat occasions##
 m1 <- svyglm(BMeatokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
 exp_summary(m1)
@@ -325,20 +333,37 @@ exp_summary(m1)
 
 
 ##g per occasion##
-m1 <- svyglm(BgperokajMeat ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(BgperokajProcessed ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(BgperokajRed ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(BgperokajWhite ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(BokajGrams ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-
+m1 <- svyglm(BgperokajMeat ~ SurveyYear, dat.design)
+lm_summary(m1)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+sum(complete.cases(dat.design$variables$BgperokajMeat[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$BgperokajMeat[dat.design$variables$SurveyYear == 11])) #n values year 11
+m1 <- svyglm(BgperokajProcessed ~ SurveyYear, dat.design)
+lm_summary(m1)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+sum(complete.cases(dat.design$variables$BgperokajProcessed[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$BgperokajProcessed[dat.design$variables$SurveyYear == 11])) #n values year 11
+m1 <- svyglm(BgperokajRed ~ SurveyYear, dat.design)
+lm_summary(m1)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+sum(complete.cases(dat.design$variables$BgperokajRed[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$BgperokajRed[dat.design$variables$SurveyYear == 11])) #n values year 11
+m1 <- svyglm(BgperokajWhite ~ SurveyYear, dat.design)
+lm_summary(m1)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+sum(complete.cases(dat.design$variables$BgperokajWhite[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$BgperokajWhite[dat.design$variables$SurveyYear == 11])) #n values year 11
+m1 <- svyglm(BokajGrams ~ SurveyYear, dat.design)
+lm_summary(m1)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+sum(complete.cases(dat.design$variables$BokajGrams[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$BokajGrams[dat.design$variables$SurveyYear == 11])) #n values year 11
 
 
 #LUNCH
+#overall n values
+sum(complete.cases(dat.design$variables$LMeatokaj[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$LMeatokaj[dat.design$variables$SurveyYear == 11])) #n values year 11
 ##Meat occasions##
 m1 <- svyglm(LMeatokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
 exp_summary(m1)
@@ -351,21 +376,39 @@ exp_summary(m1)
 
 
 ##g per occasion##
-m1 <- svyglm(LgperokajMeat ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(LgperokajProcessed ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(LgperokajRed ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(LgperokajWhite ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(LokajGrams ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
+m1 <- svyglm(LgperokajMeat ~ SurveyYear, dat.design)
+lm_summary(m1)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+sum(complete.cases(dat.design$variables$LgperokajMeat[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$LgperokajMeat[dat.design$variables$SurveyYear == 11])) #n values year 11
+m1 <- svyglm(LgperokajProcessed ~ SurveyYear, dat.design)
+lm_summary(m1)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+sum(complete.cases(dat.design$variables$LgperokajProcessed[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$LgperokajProcessed[dat.design$variables$SurveyYear == 11])) #n values year 11
+m1 <- svyglm(LgperokajRed ~ SurveyYear, dat.design)
+lm_summary(m1)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+sum(complete.cases(dat.design$variables$LgperokajRed[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$LgperokajRed[dat.design$variables$SurveyYear == 11])) #n values year 11
+m1 <- svyglm(LgperokajWhite ~ SurveyYear, dat.design)
+lm_summary(m1)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+sum(complete.cases(dat.design$variables$LgperokajWhite[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$LgperokajWhite[dat.design$variables$SurveyYear == 11])) #n values year 11
+m1 <- svyglm(LokajGrams ~ SurveyYear, dat.design)
+lm_summary(m1)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+sum(complete.cases(dat.design$variables$LokajGrams[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$LokajGrams[dat.design$variables$SurveyYear == 11])) #n values year 11
 
 
 
 
 #DINNER
+#overall n values
+sum(complete.cases(dat.design$variables$DMeatokaj[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$DMeatokaj[dat.design$variables$SurveyYear == 11])) #n values year 11
 ##Meat occasions##
 m1 <- svyglm(DMeatokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
 exp_summary(m1)
@@ -378,23 +421,38 @@ exp_summary(m1)
 
 
 ##g per occasion##
-m1 <- svyglm(DgperokajMeat ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(DgperokajProcessed ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(DgperokajRed ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(DgperokajWhite ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(DokajGrams ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
+m1 <- svyglm(DgperokajMeat ~ SurveyYear, dat.design)
+lm_summary(m1)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+sum(complete.cases(dat.design$variables$DgperokajMeat[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$DgperokajMeat[dat.design$variables$SurveyYear == 11])) #n values year 11
+m1 <- svyglm(DgperokajProcessed ~ SurveyYear, dat.design)
+lm_summary(m1)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+sum(complete.cases(dat.design$variables$DgperokajProcessed[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$DgperokajProcessed[dat.design$variables$SurveyYear == 11])) #n values year 11
+m1 <- svyglm(DgperokajRed ~ SurveyYear, dat.design)
+lm_summary(m1)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+sum(complete.cases(dat.design$variables$DgperokajRed[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$DgperokajRed[dat.design$variables$SurveyYear == 11])) #n values year 11
+m1 <- svyglm(DgperokajWhite ~ SurveyYear, dat.design)
+lm_summary(m1)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+sum(complete.cases(dat.design$variables$DgperokajWhite[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$DgperokajWhite[dat.design$variables$SurveyYear == 11])) #n values year 11
+m1 <- svyglm(DokajGrams ~ SurveyYear, dat.design)
+lm_summary(m1)
+summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+sum(complete.cases(dat.design$variables$DokajGrams[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$DokajGrams[dat.design$variables$SurveyYear == 11])) #n values year 11
 
 
 
 ##########################SI TABLE 2 - analysis by covariates########################
 
 #use this general structure for the following functions to extract beta coefficient
-#estimates in their exponentiated form.
+#estimates in their exponentiated form (leaving this information in for reasoning).
 #I give age as an example because that's the most complex. Sex & eqv are simpler
 #b0 #intercept
 #b1 #survey year 11
@@ -456,6 +514,38 @@ exp_interaction_CI_sex <- function(response_var, design) {
   )
   return(result_table)
 }
+glm_interaction_CI_sex <- function(response_var, design) {
+  model_formula <- as.formula(paste(response_var, "~ SurveyYear + Sex + SurveyYear * Sex"))
+  model <- svyglm(model_formula, design = design)
+  model_summary <- summary(model)
+  betas <- coef(model)
+  se <- coef(model_summary)[, "Std. Error"]
+  #combinations of coefficients
+  b_combinations <- c(
+    betas["(Intercept)"],
+    betas["(Intercept)"] + betas["SurveyYear11"],
+    betas["(Intercept)"] + betas["SexF"],
+    betas["(Intercept)"] + betas["SexF"] + betas["SurveyYear11"] + betas["SurveyYear11:SexF"]
+  )
+  #standard errors for combinations
+  se_combinations <- c(
+    se["(Intercept)"],
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
+    sqrt(se["(Intercept)"]^2 + se["SexF"]^2),
+    sqrt(se["(Intercept)"]^2 + se["SexF"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:SexF"]^2)
+  )
+  # CI for combinations
+  lower_bound <- round(b_combinations - 1.96 * se_combinations, 2)
+  upper_bound <- round(b_combinations + 1.96 * se_combinations, 2)
+  #data frame to present the results
+  result_table <- data.frame(
+    Group = c("M_Y1", "M_Y11", "F_Y1", "F_Y11"),
+    Beta = b_combinations,
+    Lower = lower_bound,
+    Upper = upper_bound
+  )
+  return(result_table)
+}
 #days
 exp_interaction_CI_sex(response_var = "MeatDays", design = dat.design)
 exp_interaction_CI_sex(response_var = "ProcessedDays", design = dat.design)
@@ -468,10 +558,10 @@ exp_interaction_CI_sex(response_var = "avgProcessedokaj", design = dat.design)
 exp_interaction_CI_sex(response_var = "avgRedokaj", design = dat.design)
 exp_interaction_CI_sex(response_var = "avgWhiteokaj", design = dat.design)
 #portion size
-exp_interaction_CI_sex(response_var = "gperokajMeat", design = dat.design)
-exp_interaction_CI_sex(response_var = "gperokajProcessed", design = dat.design)
-exp_interaction_CI_sex(response_var = "gperokajRed", design = dat.design)
-exp_interaction_CI_sex(response_var = "gperokajWhite", design = dat.design)
+glm_interaction_CI_sex(response_var = "gperokajMeat", design = dat.design)
+glm_interaction_CI_sex(response_var = "gperokajProcessed", design = dat.design)
+glm_interaction_CI_sex(response_var = "gperokajRed", design = dat.design)
+glm_interaction_CI_sex(response_var = "gperokajWhite", design = dat.design)
 
 #AGE
 exp_interaction_CI_age <- function(response_var, design) {
@@ -519,6 +609,50 @@ exp_interaction_CI_age <- function(response_var, design) {
   )
   return(result_table)
 }
+glm_interaction_CI_age <- function(response_var, design) {
+  model_formula <- as.formula(paste(response_var, "~ SurveyYear + AgeG + SurveyYear * AgeG"))
+  model <- svyglm(model_formula, design = design)
+  model_summary <- summary(model)
+  betas <- coef(model)
+  se <- coef(model_summary)[, "Std. Error"]
+  #combinations of coefficients
+  b_combinations <- c(
+    betas["(Intercept)"],
+    betas["(Intercept)"] + betas["SurveyYear11"],
+    betas["(Intercept)"] + betas["AgeG1"],
+    betas["(Intercept)"] + betas["AgeG1"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG1"],
+    betas["(Intercept)"] + betas["AgeG2"],
+    betas["(Intercept)"] + betas["AgeG2"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG2"],
+    betas["(Intercept)"] + betas["AgeG4"],
+    betas["(Intercept)"] + betas["AgeG4"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG4"],
+    betas["(Intercept)"] + betas["AgeG5"],
+    betas["(Intercept)"] + betas["AgeG5"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG5"]
+  )
+  #standard errors for combinations
+  se_combinations <- c(
+    se["(Intercept)"],
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
+    se["AgeG1"],
+    sqrt(se["AgeG1"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG1"]^2),
+    se["AgeG2"],
+    sqrt(se["AgeG2"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG2"]^2),
+    se["AgeG4"],
+    sqrt(se["AgeG4"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG4"]^2),
+    se["AgeG5"],
+    sqrt(se["AgeG5"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG5"]^2)
+  )
+  # CI for combinations
+  lower_bound <- round(b_combinations - 1.96 * se_combinations, 2)
+  upper_bound <- round(b_combinations + 1.96 * se_combinations, 2)
+  #data frame to present the results
+  result_table <- data.frame(
+    Group = c("18-40_Y1", "18-40_Y11", "<10_Y1", "<10_Y11", "11-17_Y1", "11-17_Y11", "41-59_Y1", "41-59_Y11", ">=60_Y1", ">=60_Y11"),
+    Beta = b_combinations,
+    Lower = lower_bound,
+    Upper = upper_bound
+  )
+  return(result_table)
+}
 #days
 exp_interaction_CI_age(response_var = "MeatDays", design = dat.design)
 exp_interaction_CI_age(response_var = "ProcessedDays", design = dat.design)
@@ -531,10 +665,10 @@ exp_interaction_CI_age(response_var = "avgProcessedokaj", design = dat.design)
 exp_interaction_CI_age(response_var = "avgRedokaj", design = dat.design)
 exp_interaction_CI_age(response_var = "avgWhiteokaj", design = dat.design)
 #portion size
-exp_interaction_CI_age(response_var = "gperokajMeat", design = dat.design)
-exp_interaction_CI_age(response_var = "gperokajProcessed", design = dat.design)
-exp_interaction_CI_age(response_var = "gperokajRed", design = dat.design)
-exp_interaction_CI_age(response_var = "gperokajWhite", design = dat.design)
+glm_interaction_CI_age(response_var = "gperokajMeat", design = dat.design)
+glm_interaction_CI_age(response_var = "gperokajProcessed", design = dat.design)
+glm_interaction_CI_age(response_var = "gperokajRed", design = dat.design)
+glm_interaction_CI_age(response_var = "gperokajWhite", design = dat.design)
 
 #EQV
 exp_interaction_CI_eqv <- function(response_var, design) {
@@ -574,6 +708,42 @@ exp_interaction_CI_eqv <- function(response_var, design) {
   )
   return(result_table)
 }
+glm_interaction_CI_eqv <- function(response_var, design) {
+  model_formula <- as.formula(paste(response_var, "~ SurveyYear + eqv + SurveyYear * eqv"))
+  model <- svyglm(model_formula, design = design)
+  model_summary <- summary(model)
+  betas <- coef(model)
+  se <- coef(model_summary)[, "Std. Error"]
+  #combinations of coefficients
+  b_combinations <- c(
+    betas["(Intercept)"],
+    betas["(Intercept)"] + betas["eqv2"],
+    betas["(Intercept)"] + betas["eqv3"],
+    betas["(Intercept)"] + betas["SurveyYear11"],
+    betas["(Intercept)"] + betas["SurveyYear11"] + betas["eqv2"] + betas["SurveyYear11:eqv2"],
+    betas["(Intercept)"] + betas["SurveyYear11"] + betas["eqv3"] + betas["SurveyYear11:eqv3"]
+  )
+  #standard errors for combinations
+  se_combinations <- c(
+    se["(Intercept)"],
+    sqrt(se["(Intercept)"]^2 + se["eqv2"]^2),
+    sqrt(se["(Intercept)"]^2 + se["eqv3"]^2),
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2 + se["eqv2"]^2 + se["SurveyYear11:eqv2"]^2),
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2 + se["eqv3"]^2 + se["SurveyYear11:eqv3"]^2)
+  )
+  # CI for combinations
+  lower_bound <- round(b_combinations - 1.96 * se_combinations, 2)
+  upper_bound <- round(b_combinations + 1.96 * se_combinations, 2)
+  #data frame to present the results
+  result_table <- data.frame(
+    Group = c("eqv1_Y1", "eqv2_Y1", "eqv3_Y1", "eqv1_Y11", "eqv2_Y11", "eqv3_Y11"),
+    Beta = b_combinations,
+    Lower = lower_bound,
+    Upper = upper_bound
+  )
+  return(result_table)
+}
 #days
 exp_interaction_CI_eqv(response_var = "MeatDays", design = dat.design)
 exp_interaction_CI_eqv(response_var = "ProcessedDays", design = dat.design)
@@ -586,10 +756,10 @@ exp_interaction_CI_eqv(response_var = "avgProcessedokaj", design = dat.design)
 exp_interaction_CI_eqv(response_var = "avgRedokaj", design = dat.design)
 exp_interaction_CI_eqv(response_var = "avgWhiteokaj", design = dat.design)
 #portion size
-exp_interaction_CI_eqv(response_var = "gperokajMeat", design = dat.design)
-exp_interaction_CI_eqv(response_var = "gperokajProcessed", design = dat.design)
-exp_interaction_CI_eqv(response_var = "gperokajRed", design = dat.design)
-exp_interaction_CI_eqv(response_var = "gperokajWhite", design = dat.design)
+glm_interaction_CI_eqv(response_var = "gperokajMeat", design = dat.design)
+glm_interaction_CI_eqv(response_var = "gperokajProcessed", design = dat.design)
+glm_interaction_CI_eqv(response_var = "gperokajRed", design = dat.design)
+glm_interaction_CI_eqv(response_var = "gperokajWhite", design = dat.design)
 
 
 #######################DECOMPOSITION ANALYSIS###############
@@ -605,8 +775,8 @@ d1 <- 3.270036 #meat days y1
 d2 <- 3.026991 #meat days y11
 o1 <- (zo1*4)/d1 #meat occasions per meat day y1
 o2 <- (zo2*4)/d2 #meat occasions per meat day y11
-p1 <- 85.75767 #meat portion size y1
-p2 <- 76.12045 #meat portion size y11
+p1 <- 85.758 #meat portion size y1
+p2 <- 76.120 #meat portion size y11
 #total consumption
 c1 <- p1*o1*d1
 c2 <- p2*o2*d2
@@ -638,8 +808,8 @@ d1 <- 1.768601 #meat days y1
 d2 <- 1.592737 #meat days y11
 o1 <- (zo1*4)/d1 #meat occasions per meat day y1
 o2 <- (zo2*4)/d2 #meat occasions per meat day y11
-p1 <- 63.21389 #meat portion size y1
-p2 <- 52.64167 #meat portion size y11
+p1 <- 63.214 #meat portion size y1
+p2 <- 52.642 #meat portion size y11
 #total consumption
 c1 <- p1*o1*d1 
 c2 <- p2*o2*d2
@@ -660,9 +830,6 @@ om1
 pm1
 #check that the separate percents add up to 100%
 dm1+om1+pm1
-#because opposite trends, calculate reductions responsible % for reductions
-dm1*(dm1+om1+pm1)/(dm1+pm1)
-pm1*(dm1+om1+pm1)/(dm1+pm1)
 
 
 
@@ -676,8 +843,8 @@ d1 <- 1.559663 #meat days y1
 d2 <- 1.227206 #meat days y11
 o1 <- (zo1*4)/d1 #meat occasions per meat day y1
 o2 <- (zo2*4)/d2 #meat occasions per meat day y11
-p1 <- 89.73043 #meat portion size y1
-p2 <- 69.68534 #meat portion size y11
+p1 <- 89.731 #meat portion size y1
+p2 <- 69.686 #meat portion size y11
 #total consumption
 c1 <- p1*o1*d1 
 c2 <- p2*o2*d2
@@ -713,8 +880,8 @@ d1 <- 1.420405 #meat days y1
 d2 <- 1.568424 #meat days y11
 o1 <- (zo1*4)/d1 #meat occasions per meat day y1
 o2 <- (zo2*4)/d2 #meat occasions per meat day y11
-p1 <- 84.64974 #meat portion size y1
-p2 <- 79.74069 #meat portion size y11
+p1 <- 84.650 #meat portion size y1
+p2 <- 79.741 #meat portion size y11
 #total consumption
 c1 <- p1*o1*d1 
 c2 <- p2*o2*d2
@@ -736,14 +903,6 @@ pm1
 #check that the separate percents add up to 100%
 dm1+om1+pm1
 
-abs(dm1)/(abs(dm1)+abs(om1)+abs(pm1))
-abs(om1)/(abs(dm1)+abs(om1)+abs(pm1))
-abs(pm1)/(abs(dm1)+abs(om1)+abs(pm1))
-
-#because opposite trends, calculate reductions responsible % for reductions
-dm1*(dm1+om1+pm1)/(dm1+om1)
-om1*(dm1+om1+pm1)/(dm1+om1)
-
 
 
 
@@ -764,6 +923,11 @@ ggplot(palette_df, aes(x = factor(label), y = 1, fill = color)) +
 
 
 #######################FIGURE 1###########################
+#function for Survey Year x axis labels
+custom_x_labels <- function(x) {
+  labels <- ifelse(x == 1, "2008", sprintf("'%02d", x + 7))
+  return(labels)
+}
 #line plot of meat trends
 #Days
 m2 <- svyglm(ProcessedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
@@ -803,7 +967,6 @@ plot1 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Cate
   theme(text = element_text(family = "Avenir", size = 12)) +
   guides(linetype = guide_legend(override.aes = list(color = "black")))
 print(plot1)
-ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Days plot.png", plot1, width = 6, height = 6)
 
 
 #Occasions
@@ -838,9 +1001,6 @@ plot2 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedOccasions, color =
   theme_classic() +
   theme(text = element_text(family = "Avenir", size = 12))
 print(plot2)
-ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Occasions plot.png", plot2, width = 6, height = 6)
-
-
 
 
 #portion size
@@ -875,7 +1035,6 @@ plot3 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedPortion, color = C
   theme_classic() +
   theme(text = element_text(family = "Avenir", size = 12))
 print(plot3)
-ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Portion size plot.png", plot3, width = 6, height = 6)
 
 
 #combine all into 1 figure
@@ -907,23 +1066,16 @@ ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 1.pn
 
 
 
-
-
-
-
-
-
-
 ################FIGURE 2#########################
 #decomposition analysis plot
-#make data
+#make data (values pulled from decomposition analysis section of this code)
 meat_data <- data.frame(
   Meat = factor(c("Total Meat", "Processed Meat", "Red Meat", "White Meat"),
                 levels = c("Total Meat", "Processed Meat", "Red Meat", "White Meat")),
-  Total_Delta = c(-79.93, -32.18, -64.61, 7.08),
+  Total_Delta = c(-79.94, -32.18, -64.61, 7.08),
   Days_Delta = c(-29.61, -12.53, -29.41, 13.92),
   Occasions_Delta = c(-4.62, 2.25, -4.18, 1.55),
-  Portion_Size_Delta = c(-45.70, -21.90, -31.02, -8.39)
+  Portion_Size_Delta = c(-45.71, -21.90, -31.02, -8.39)
 )
 
 meat_data_divided <- meat_data
@@ -1152,7 +1304,7 @@ summary_df$BMeatokajperc_cat <- factor(summary_df$BMeatokajperc_cat, levels = c(
 plot1 <- ggplot(summary_df, aes(x = SurveyYear, y = percentage, fill = BMeatokajperc_cat)) +
   geom_bar(stat = "identity") +
   geom_text(aes(label = sprintf("%.1f%%", percentage)), position = position_stack(vjust = 0.5), size = 3.5) +
-  scale_x_continuous(breaks = meat_days_prop$SurveyYear, labels = custom_x_labels) +
+  scale_x_continuous(breaks = summary_df$SurveyYear, labels = custom_x_labels) +
   scale_y_continuous(labels = function(x) paste0(x, "%")) +
   scale_fill_brewer(palette = "Reds", direction = -1) +
   theme_classic() +
@@ -1186,7 +1338,7 @@ summary_df$LMeatokajperc_cat <- factor(summary_df$LMeatokajperc_cat, levels = c(
 plot2 <- ggplot(summary_df, aes(x = SurveyYear, y = percentage, fill = LMeatokajperc_cat)) +
   geom_bar(stat = "identity") +
   geom_text(aes(label = sprintf("%.1f%%", percentage)), position = position_stack(vjust = 0.5), size = 3.5) +
-  scale_x_continuous(breaks = meat_days_prop$SurveyYear, labels = custom_x_labels) +
+  scale_x_continuous(breaks = summary_df$SurveyYear, labels = custom_x_labels) +
   scale_y_continuous(labels = function(x) paste0(x, "%")) +
   scale_fill_brewer(palette = "Reds", direction = -1) +
   theme_classic() +
@@ -1220,7 +1372,7 @@ summary_df$DMeatokajperc_cat <- factor(summary_df$DMeatokajperc_cat, levels = c(
 plot3 <- ggplot(summary_df, aes(x = SurveyYear, y = percentage, fill = DMeatokajperc_cat)) +
   geom_bar(stat = "identity") +
   geom_text(aes(label = sprintf("%.1f%%", percentage)), position = position_stack(vjust = 0.5), size = 3.5) +
-  scale_x_continuous(breaks = meat_days_prop$SurveyYear, labels = custom_x_labels) +
+  scale_x_continuous(breaks = summary_df$SurveyYear, labels = custom_x_labels) +
   scale_y_continuous(labels = function(x) paste0(x, "%")) +
   scale_fill_brewer(palette = "Reds", direction = -1) +
   theme_classic() +
