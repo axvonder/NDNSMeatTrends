@@ -8,7 +8,6 @@ library(RColorBrewer)
 library(scales)
 library(gridExtra)
 library(cowplot)
-library(boot)
 library(MASS)
 #set wd
 setwd("/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data")
@@ -75,44 +74,6 @@ dat.design <-
 
 #create the survey design object (for descriptive)
 survey_design <- svydesign(id = ~area, strata = ~astrata5, weights = ~wti, data = dat)
-
-######################TEST DISTRIBUTION##################
-#function to perform Shapiro-Wilk test on a subset
-#since the dataset is bigger than 5000, running the test separately for each survey year
-#store bootstrapped p values
-p_values <- vector("numeric", length = length(unique(dat$SurveyYear)))
-set.seed(628) #emily's favourite number
-for (i in 1:length(unique(dat$SurveyYear))) {
-  subset_data <- dat[dat$SurveyYear == unique(dat$SurveyYear)[i], ]
-  
-  #shapiro-Wilk test on the subset data
-  result <- shapiro.test(subset_data$gperokajMeat)
-  
-  #store the p-values
-  p_values[i] <- result$p.value
-}
-print(p_values)
-
-#let's try a sqrt transform
-#store bootstrapped p values
-p_values <- vector("numeric", length = length(unique(dat$SurveyYear)))
-set.seed(628) #emily's favourite number
-for (i in 1:length(unique(dat$SurveyYear))) {
-  subset_data <- dat[dat$SurveyYear == unique(dat$SurveyYear)[i], ]
-  
-  #sqrt var
-  sqrt_var <- sqrt(subset_data$gperokajMeat)
-  
-  #shapiro-Wilk test on the subset data
-  result <- shapiro.test(sqrt_var)
-  
-  #store the p-values
-  p_values[i] <- result$p.value
-}
-print(p_values)
-
-
-
 
 
 #####################TABLE 1 - DEMOGRAPHICS#######################
@@ -243,6 +204,48 @@ exp_summary <- function(model) {
   return(exp_summary_obj)
 }
 
+lm_summary <- function(model) {
+  # Calculate the sum between the intercept and SurveyYearX coefficients
+  diff <- coef(model)["(Intercept)"] + coef(model)[-1]
+  
+  # Calculate the confidence intervals
+  conf_int <- confint(model)
+  
+  # Calculate the confidence intervals for the differences
+  diff_conf_int <- conf_int["(Intercept)",] + conf_int[-1,]
+  
+  # Create a new summary object
+  summary_obj <- summary(model)
+  
+  # Calculate the t-values and p-values
+  t_values <- coef(model) / summary_obj$coefficients[, "Std. Error"]
+  p_values <- 2 * pt(-abs(t_values), df.residual(model))
+  
+  # Replace the coefficients and confidence intervals with the calculated values
+  summary_obj$coefficients <- rbind(c(coef(model)["(Intercept)"], summary_obj$coefficients[1, "Std. Error"], conf_int[1,], p_values[1]),
+                                    cbind(diff,
+                                          summary_obj$coefficients[-1, "Std. Error"],
+                                          diff_conf_int,
+                                          p_values[-1]))
+  
+  # Update the column names
+  colnames(summary_obj$coefficients) <- c("Coef", "Std. Error", "2.5 %", "97.5 %", "Pr(>|t|)")
+  
+  # Include the significance stars
+  signif.stars <- options("show.signif.stars")
+  if (is.logical(signif.stars) && signif.stars) {
+    summary_obj$coefficients <- cbind(summary_obj$coefficients, 
+                                      summary_obj$coefficients[, "Pr(>|t|)"])
+    colnames(summary_obj$coefficients)[ncol(summary_obj$coefficients)] <- " "
+    summary_obj$coefficients[, " "] <- symnum(summary_obj$coefficients[, "Pr(>|t|)"], 
+                                              corr = FALSE, na = FALSE,
+                                              cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
+                                              symbols = c("***", "**", "*", ".", " "))
+  }
+  
+  return(summary_obj)
+}
+
 
 
 ##MEAT DAYS##
@@ -270,16 +273,16 @@ exp_summary(m1)
 
 
 ##g per occasion##
-m1 <- svyglm(gperokajMeat ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(gperokajProcessed ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(gperokajRed ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(gperokajWhite ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(okajTotalGrams ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
+m1 <- svyglm(gperokajMeat ~ SurveyYear, dat.design)
+lm_summary(m1)
+m1 <- svyglm(gperokajProcessed ~ SurveyYear, dat.design)
+lm_summary(m1)
+m1 <- svyglm(gperokajRed ~ SurveyYear, dat.design)
+lm_summary(m1)
+m1 <- svyglm(gperokajWhite ~ SurveyYear, dat.design)
+lm_summary(m1)
+m1 <- svyglm(okajTotalGrams ~ SurveyYear, dat.design)
+lm_summary(m1)
 
 
 

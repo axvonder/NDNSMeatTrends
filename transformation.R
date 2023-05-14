@@ -40,9 +40,9 @@ ult$MealTime <- as.numeric(hms(ult$MealTime))
 #definte "breakfast" "lunch" and "dinner"
 ult <- ult %>%
   mutate(MealBlock = case_when(
-    (MealTime >= 21600 & MealTime <= 36000) ~ 1,
-    (MealTime >= 37800 & MealTime <= 52200) ~ 2,
-    (MealTime >= 59400 & MealTime <= 77400) ~ 3,
+    (MealTime >= 21600 & MealTime <= 39600) ~ 1,     # 6:00 AM - 11:00 AM
+    (MealTime >= 43200 & MealTime <= 54000) ~ 2,     # 12:00 PM - 3:00 PM
+    (MealTime >= 57600 & MealTime <= 82800) ~ 3      # 4:00 PM - 11:00 PM
   ))
 #define eating occasions
 ult <- ult %>%
@@ -425,9 +425,9 @@ print(range(test$MealTime))
 # Assign meal blocks
 test <- test %>%
   mutate(MealBlock = case_when(
-    (MealTime >= 6 & MealTime <= 10) ~ "Breakfast",
-    (MealTime >= 10.5 & MealTime <= 14.5) ~ "Lunch",
-    (MealTime >= 16.5 & MealTime <= 21.5) ~ "Dinner",
+    (MealTime >= 6 & MealTime <= 11) ~ "Breakfast",
+    (MealTime >= 12 & MealTime <= 15) ~ "Lunch",
+    (MealTime >= 16 & MealTime <= 23) ~ "Dinner",
     TRUE ~ "Other"
   ))
 
@@ -441,7 +441,7 @@ print(proportion)
 # Create a histogram of eating occasions throughout the day with meal blocks overlaid
 ggplot(test, aes(x = MealTime)) +
   geom_histogram(bins = 24, fill = "lightblue", color = "black") +
-  geom_vline(xintercept = c(6, 10, 10.5, 14.5, 16.5, 21.5), linetype = "dashed", color = "red", size = 1) +
+  geom_vline(xintercept = c(6, 11, 12, 15, 16, 23), linetype = "dashed", color = "red", size = 1) +
   labs(x = "Time of day (hours)", y = "Number of eating occasions",
        title = "Distribution of eating occasions throughout the day") +
   theme_minimal()
