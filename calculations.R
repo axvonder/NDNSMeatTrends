@@ -1108,10 +1108,9 @@ meat_data <- data.frame(
   Occasions_Delta = c(-4.62, 2.25, -4.18, 1.55),
   Portion_Size_Delta = c(-45.71, -21.90, -31.02, -8.39)
 )
-
 meat_data_divided <- meat_data
 numeric_columns <- sapply(meat_data, is.numeric)
-#divide numeric columns by 4
+#divide numeric columns by 4 (to represent daily intake)
 meat_data_divided[, numeric_columns] <- meat_data[, numeric_columns] / 4
 #rename back to original
 meat_data <- meat_data_divided
@@ -1143,7 +1142,6 @@ file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/Figur
 ggsave(file_path, bar_plot, width = 10, height = 8, dpi = 600)
 
 ###############FIGURE 3#################################
-
 custom_x_labels <- function(x) {
   labels <- ifelse(x == 1, "2008", sprintf("'%02d", x + 7))
   return(labels)
@@ -1301,7 +1299,6 @@ ggsave(file_path, combined_plot, width = 16, height = 12, dpi = 600)
 
 
 ###############SI FIGURE 1###########################
-
 #function for survey year x axis
 custom_x_labels <- function(x) {
   labels <- ifelse(x == 1, "2008", sprintf("'%02d", x + 7))
