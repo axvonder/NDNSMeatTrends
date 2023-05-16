@@ -143,13 +143,13 @@ survey_design11 %>%
   summarise(pct = survey_mean())
 
 
-#count % of meat consumers
+#count % of meat consumers Year 1
 survey_design1 <- mutate(survey_design1, meat_gt_0 = as.numeric(sumMeatg > 0))
 survey_design1 %>%
   group_by(meat_gt_0) %>%
   summarise(pct = survey_mean()) #96.4%
 
-# Create a new variable indicating whether sumMeatg > 0
+#count % of meat consumers Year 11
 survey_design11 <- mutate(survey_design11, meat_gt_0 = as.numeric(sumMeatg > 0))
 survey_design11 %>%
   group_by(meat_gt_0) %>%
@@ -158,38 +158,43 @@ survey_design11 %>%
 
 #############################TABLE 2 - MAIN ANALYSIS ###################
 
-# Creates a custom summary function for exponentiated coefficients
-# as well as printing out the 95% confidence interval values
-# (and retains significance indicators)
-exp_summary <- function(model) {
-  # Exponentiate the sum between the intercept and SurveyYearX coefficients
+#custom summary function for exponentiated coefficients
+#calculates 95% confidence interval values
+exp_summary <- function(response_var, design) {
+  #define the model formula dynamically
+  model_formula <- as.formula(paste(response_var, "~ SurveyYear"))
+  
+  #fit the model
+  model <- svyglm(model_formula, family=poisson(link = "log"), design = design)
+  
+  #exponentiate the sum between the intercept and SurveyYearX coefficients
   exp_diff <- exp(coef(model)["(Intercept)"] + coef(model)[-1])
   
-  # Exponentiate the confidence intervals
+  #exponentiate the confidence intervals
   conf_int <- confint(model)
   exp_conf_int <- exp(conf_int)
   
-  # Calculate the confidence intervals for the differences
+  #calculate the confidence intervals for the differences
   exp_diff_conf_int <- exp(conf_int["(Intercept)",] + conf_int[-1,])
   
-  # Create a new summary object
+  #create a new "summary" object
   exp_summary_obj <- summary(model)
   
-  # Calculate the z-values and p-values
+  #calculate the z-values and p-values
   z_values <- coef(model) / exp_summary_obj$coefficients[, "Std. Error"]
   p_values <- 2 * pnorm(-abs(z_values))
   
-  # Replace the coefficients and confidence intervals with the exponentiated values
+  #replace the coefficients and confidence intervals with the exponentiated values
   exp_summary_obj$coefficients <- rbind(c(exp(coef(model)["(Intercept)"]), exp_summary_obj$coefficients[1, "Std. Error"], exp_conf_int[1,], p_values[1]),
                                         cbind(exp_diff,
                                               exp_summary_obj$coefficients[-1, "Std. Error"],
                                               exp_diff_conf_int,
                                               p_values[-1]))
   
-  # Update the column names
+  #update the column names
   colnames(exp_summary_obj$coefficients) <- c("Exp(Coef)", "Std. Error", "2.5 %", "97.5 %", "Pr(>|z|)")
   
-  # Include the significance stars
+  #include the significance stars
   signif.stars <- options("show.signif.stars")
   if (is.logical(signif.stars) && signif.stars) {
     exp_summary_obj$coefficients <- cbind(exp_summary_obj$coefficients, 
@@ -203,35 +208,40 @@ exp_summary <- function(model) {
   
   return(exp_summary_obj)
 }
-
-lm_summary <- function(model) {
-  # Calculate the sum between the intercept and SurveyYearX coefficients
+lm_summary <- function(response_var, design) {
+  #define the model formula dynamically
+  model_formula <- as.formula(paste(response_var, "~ SurveyYear"))
+  
+  #fit the model
+  model <- svyglm(model_formula, design = design)
+  
+  #calculate the sum between the intercept and SurveyYearX coefficients
   diff <- coef(model)["(Intercept)"] + coef(model)[-1]
   
-  # Calculate the confidence intervals
+  #calculate the confidence intervals
   conf_int <- confint(model)
   
-  # Calculate the confidence intervals for the differences
+  #calculate the confidence intervals for the differences
   diff_conf_int <- conf_int["(Intercept)",] + conf_int[-1,]
   
-  # Create a new summary object
+  #create a new "summary" object
   summary_obj <- summary(model)
   
-  # Calculate the t-values and p-values
+  #calculate the t-values and p-values
   t_values <- coef(model) / summary_obj$coefficients[, "Std. Error"]
   p_values <- 2 * pt(-abs(t_values), df.residual(model))
   
-  # Replace the coefficients and confidence intervals with the calculated values
+  #replace the coefficients and confidence intervals with the calculated values
   summary_obj$coefficients <- rbind(c(coef(model)["(Intercept)"], summary_obj$coefficients[1, "Std. Error"], conf_int[1,], p_values[1]),
                                     cbind(diff,
                                           summary_obj$coefficients[-1, "Std. Error"],
                                           diff_conf_int,
                                           p_values[-1]))
   
-  # Update the column names
+  #update column names
   colnames(summary_obj$coefficients) <- c("Coef", "Std. Error", "2.5 %", "97.5 %", "Pr(>|t|)")
   
-  # Include the significance stars
+  #include the significance stars
   signif.stars <- options("show.signif.stars")
   if (is.logical(signif.stars) && signif.stars) {
     summary_obj$coefficients <- cbind(summary_obj$coefficients, 
@@ -247,52 +257,44 @@ lm_summary <- function(model) {
 }
 
 
-
 ##MEAT DAYS##
-m1 <- svyglm(MeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(ProcessedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(RedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(WhiteDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(NoMeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-
+exp_summary(response_var = "MeatDays", design = dat.design)
+exp_summary(response_var = "ProcessedDays", design = dat.design)
+exp_summary(response_var = "RedDays", design = dat.design)
+exp_summary(response_var = "WhiteDays", design = dat.design)
+exp_summary(response_var = "NoMeatDays", design = dat.design)
 
 ##Meat occasions##
-m1 <- svyglm(avgMeatokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(avgProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(avgRedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(avgWhiteokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-
+exp_summary(response_var = "avgMeatokaj", design = dat.design)
+exp_summary(response_var = "avgProcessedokaj", design = dat.design)
+exp_summary(response_var = "avgRedokaj", design = dat.design)
+exp_summary(response_var = "avgWhiteokaj", design = dat.design)
 
 ##g per occasion##
-m1 <- svyglm(gperokajMeat ~ SurveyYear, dat.design)
-lm_summary(m1)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
-m1 <- svyglm(gperokajProcessed ~ SurveyYear, dat.design)
-lm_summary(m1)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
-m1 <- svyglm(gperokajRed ~ SurveyYear, dat.design)
-lm_summary(m1)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
-m1 <- svyglm(gperokajWhite ~ SurveyYear, dat.design)
-lm_summary(m1)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
-m1 <- svyglm(okajTotalGrams ~ SurveyYear, dat.design)
-lm_summary(m1)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+lm_summary(response_var = "gperokajMeat", design = dat.design)
+lm_summary(response_var = "gperokajProcessed", design = dat.design)
+lm_summary(response_var = "gperokajRed", design = dat.design)
+lm_summary(response_var = "gperokajWhite", design = dat.design)
+lm_summary(response_var = "okajTotalGrams", design = dat.design)
 
+#p values (use only after setting SurveyYear to numeric)
+summary(svyglm(MeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
+summary(svyglm(ProcessedDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
+summary(svyglm(RedDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
+summary(svyglm(WhiteDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
+summary(svyglm(NoMeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
 
+summary(svyglm(avgMeatokaj ~ SurveyYear, family=poisson(link = "log"), dat.design))
+summary(svyglm(avgProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design))
+summary(svyglm(avgRedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design))
+summary(svyglm(avgWhiteokaj ~ SurveyYear, family=poisson(link = "log"), dat.design))
 
+summary(svyglm(gperokajMeat ~ SurveyYear, dat.design))
+summary(svyglm(gperokajProcessed ~ SurveyYear, dat.design))
+summary(svyglm(gperokajRed ~ SurveyYear, dat.design))
+summary(svyglm(gperokajWhite ~ SurveyYear, dat.design))
 
-
+#for analysis that need to look at years separately:
 y1$fpc <- 1629
 dat.design.y1 <-
   svydesign(
@@ -322,131 +324,117 @@ table(dat$SurveyYear)
 sum(complete.cases(dat.design$variables$BMeatokaj[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$BMeatokaj[dat.design$variables$SurveyYear == 11])) #n values year 11
 ##Meat occasions##
-m1 <- svyglm(BMeatokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(BProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(BRedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(BWhiteokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-
+exp_summary(response_var = "BMeatokaj", design = dat.design)
+exp_summary(response_var = "BProcessedokaj", design = dat.design)
+exp_summary(response_var = "BRedokaj", design = dat.design)
+exp_summary(response_var = "BWhiteokaj", design = dat.design)
 
 ##g per occasion##
-m1 <- svyglm(BgperokajMeat ~ SurveyYear, dat.design)
-lm_summary(m1)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+lm_summary(response_var = "BgperokajMeat", design = dat.design)
+lm_summary(response_var = "BgperokajProcessed", design = dat.design)
+lm_summary(response_var = "BgperokajRed", design = dat.design)
+lm_summary(response_var = "BgperokajWhite", design = dat.design)
+lm_summary(response_var = "BokajGrams", design = dat.design)
+
+#p values and counts (only need counts for portion size as it'll differ by meat type which isn't the case for occasions)
+summary(svyglm(BMeatokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
+summary(svyglm(BProcessedokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
+summary(svyglm(BRedokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
+summary(svyglm(BWhiteokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
+
+summary(svyglm(BgperokajMeat ~ SurveyYear, dat.design))
 sum(complete.cases(dat.design$variables$BgperokajMeat[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$BgperokajMeat[dat.design$variables$SurveyYear == 11])) #n values year 11
-m1 <- svyglm(BgperokajProcessed ~ SurveyYear, dat.design)
-lm_summary(m1)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+summary(svyglm(BgperokajProcessed ~ SurveyYear, dat.design))
 sum(complete.cases(dat.design$variables$BgperokajProcessed[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$BgperokajProcessed[dat.design$variables$SurveyYear == 11])) #n values year 11
-m1 <- svyglm(BgperokajRed ~ SurveyYear, dat.design)
-lm_summary(m1)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+summary(svyglm(BgperokajRed ~ SurveyYear, dat.design))
 sum(complete.cases(dat.design$variables$BgperokajRed[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$BgperokajRed[dat.design$variables$SurveyYear == 11])) #n values year 11
-m1 <- svyglm(BgperokajWhite ~ SurveyYear, dat.design)
-lm_summary(m1)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+summary(svyglm(BgperokajWhite ~ SurveyYear, dat.design))
 sum(complete.cases(dat.design$variables$BgperokajWhite[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$BgperokajWhite[dat.design$variables$SurveyYear == 11])) #n values year 11
-m1 <- svyglm(BokajGrams ~ SurveyYear, dat.design)
-lm_summary(m1)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+summary(svyglm(BokajGrams ~ SurveyYear, dat.design))
 sum(complete.cases(dat.design$variables$BokajGrams[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$BokajGrams[dat.design$variables$SurveyYear == 11])) #n values year 11
-
 
 #LUNCH
 #overall n values
 sum(complete.cases(dat.design$variables$LMeatokaj[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$LMeatokaj[dat.design$variables$SurveyYear == 11])) #n values year 11
 ##Meat occasions##
-m1 <- svyglm(LMeatokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(LProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(LRedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(LWhiteokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-
+exp_summary(response_var = "LMeatokaj", design = dat.design)
+exp_summary(response_var = "LProcessedokaj", design = dat.design)
+exp_summary(response_var = "LRedokaj", design = dat.design)
+exp_summary(response_var = "LWhiteokaj", design = dat.design)
 
 ##g per occasion##
-m1 <- svyglm(LgperokajMeat ~ SurveyYear, dat.design)
-lm_summary(m1)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+lm_summary(response_var = "LgperokajMeat", design = dat.design)
+lm_summary(response_var = "LgperokajProcessed", design = dat.design)
+lm_summary(response_var = "LgperokajRed", design = dat.design)
+lm_summary(response_var = "LgperokajWhite", design = dat.design)
+lm_summary(response_var = "LokajGrams", design = dat.design)
+
+#p values and counts (only need counts for portion size as it'll differ by meat type which isn't the case for occasions)
+summary(svyglm(LMeatokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
+summary(svyglm(LProcessedokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
+summary(svyglm(LRedokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
+summary(svyglm(LWhiteokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
+
+summary(svyglm(LgperokajMeat ~ SurveyYear, dat.design))
 sum(complete.cases(dat.design$variables$LgperokajMeat[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$LgperokajMeat[dat.design$variables$SurveyYear == 11])) #n values year 11
-m1 <- svyglm(LgperokajProcessed ~ SurveyYear, dat.design)
-lm_summary(m1)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+summary(svyglm(LgperokajProcessed ~ SurveyYear, dat.design))
 sum(complete.cases(dat.design$variables$LgperokajProcessed[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$LgperokajProcessed[dat.design$variables$SurveyYear == 11])) #n values year 11
-m1 <- svyglm(LgperokajRed ~ SurveyYear, dat.design)
-lm_summary(m1)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+summary(svyglm(LgperokajRed ~ SurveyYear, dat.design))
 sum(complete.cases(dat.design$variables$LgperokajRed[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$LgperokajRed[dat.design$variables$SurveyYear == 11])) #n values year 11
-m1 <- svyglm(LgperokajWhite ~ SurveyYear, dat.design)
-lm_summary(m1)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+summary(svyglm(LgperokajWhite ~ SurveyYear, dat.design))
 sum(complete.cases(dat.design$variables$LgperokajWhite[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$LgperokajWhite[dat.design$variables$SurveyYear == 11])) #n values year 11
-m1 <- svyglm(LokajGrams ~ SurveyYear, dat.design)
-lm_summary(m1)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+summary(svyglm(LokajGrams ~ SurveyYear, dat.design))
 sum(complete.cases(dat.design$variables$LokajGrams[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$LokajGrams[dat.design$variables$SurveyYear == 11])) #n values year 11
-
-
-
 
 #DINNER
 #overall n values
 sum(complete.cases(dat.design$variables$DMeatokaj[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$DMeatokaj[dat.design$variables$SurveyYear == 11])) #n values year 11
 ##Meat occasions##
-m1 <- svyglm(DMeatokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(DProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(DRedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-m1 <- svyglm(DWhiteokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-exp_summary(m1)
-
+exp_summary(response_var = "DMeatokaj", design = dat.design)
+exp_summary(response_var = "DProcessedokaj", design = dat.design)
+exp_summary(response_var = "DRedokaj", design = dat.design)
+exp_summary(response_var = "DWhiteokaj", design = dat.design)
 
 ##g per occasion##
-m1 <- svyglm(DgperokajMeat ~ SurveyYear, dat.design)
-lm_summary(m1)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+lm_summary(response_var = "DgperokajMeat", design = dat.design)
+lm_summary(response_var = "DgperokajProcessed", design = dat.design)
+lm_summary(response_var = "DgperokajRed", design = dat.design)
+lm_summary(response_var = "DgperokajWhite", design = dat.design)
+lm_summary(response_var = "DokajGrams", design = dat.design)
+
+#p values and counts (only need counts for portion size as it'll differ by meat type which isn't the case for occasions)
+summary(svyglm(DMeatokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
+summary(svyglm(DProcessedokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
+summary(svyglm(DRedokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
+summary(svyglm(DWhiteokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
+
+summary(svyglm(DgperokajMeat ~ SurveyYear, dat.design))
 sum(complete.cases(dat.design$variables$DgperokajMeat[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$DgperokajMeat[dat.design$variables$SurveyYear == 11])) #n values year 11
-m1 <- svyglm(DgperokajProcessed ~ SurveyYear, dat.design)
-lm_summary(m1)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+summary(svyglm(DgperokajProcessed ~ SurveyYear, dat.design))
 sum(complete.cases(dat.design$variables$DgperokajProcessed[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$DgperokajProcessed[dat.design$variables$SurveyYear == 11])) #n values year 11
-m1 <- svyglm(DgperokajRed ~ SurveyYear, dat.design)
-lm_summary(m1)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+summary(svyglm(DgperokajRed ~ SurveyYear, dat.design))
 sum(complete.cases(dat.design$variables$DgperokajRed[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$DgperokajRed[dat.design$variables$SurveyYear == 11])) #n values year 11
-m1 <- svyglm(DgperokajWhite ~ SurveyYear, dat.design)
-lm_summary(m1)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+summary(svyglm(DgperokajWhite ~ SurveyYear, dat.design))
 sum(complete.cases(dat.design$variables$DgperokajWhite[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$DgperokajWhite[dat.design$variables$SurveyYear == 11])) #n values year 11
-m1 <- svyglm(DokajGrams ~ SurveyYear, dat.design)
-lm_summary(m1)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+summary(svyglm(DokajGrams ~ SurveyYear, dat.design))
 sum(complete.cases(dat.design$variables$DokajGrams[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$DokajGrams[dat.design$variables$SurveyYear == 11])) #n values year 11
-
 
 
 ##########################SI TABLE 2 - analysis by covariates########################
@@ -534,7 +522,7 @@ glm_interaction_CI_sex <- function(response_var, design) {
     sqrt(se["(Intercept)"]^2 + se["SexF"]^2),
     sqrt(se["(Intercept)"]^2 + se["SexF"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:SexF"]^2)
   )
-  # CI for combinations
+  #CI for combinations
   lower_bound <- round(b_combinations - 1.96 * se_combinations, 2)
   upper_bound <- round(b_combinations + 1.96 * se_combinations, 2)
   #data frame to present the results
@@ -559,17 +547,26 @@ exp_interaction_CI_sex(response_var = "avgRedokaj", design = dat.design)
 exp_interaction_CI_sex(response_var = "avgWhiteokaj", design = dat.design)
 #portion size
 glm_interaction_CI_sex(response_var = "gperokajMeat", design = dat.design)
-m1 <- svyglm(gperokajMeat ~ SurveyYear + Sex + SurveyYear * Sex, dat.design)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 glm_interaction_CI_sex(response_var = "gperokajProcessed", design = dat.design)
-m1 <- svyglm(gperokajProcessed ~ SurveyYear + Sex + SurveyYear * Sex, dat.design)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 glm_interaction_CI_sex(response_var = "gperokajRed", design = dat.design)
-m1 <- svyglm(gperokajRed ~ SurveyYear + Sex + SurveyYear * Sex, dat.design)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 glm_interaction_CI_sex(response_var = "gperokajWhite", design = dat.design)
-m1 <- svyglm(gperokajWhite ~ SurveyYear + Sex + SurveyYear * Sex, dat.design)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+
+#p values (use only after setting SurveyYear to numeric)
+summary(svyglm(MeatDays ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
+summary(svyglm(ProcessedDays ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
+summary(svyglm(RedDays ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
+summary(svyglm(WhiteDays ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
+summary(svyglm(NoMeatDays ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
+
+summary(svyglm(avgMeatokaj ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
+summary(svyglm(avgProcessedokaj ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
+summary(svyglm(avgRedokaj ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
+summary(svyglm(avgWhiteokaj ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
+
+summary(svyglm(gperokajMeat ~ SurveyYear + Sex + SurveyYear * Sex, dat.design))
+summary(svyglm(gperokajProcessed ~ SurveyYear + Sex + SurveyYear * Sex, dat.design))
+summary(svyglm(gperokajRed ~ SurveyYear + Sex + SurveyYear * Sex, dat.design))
+summary(svyglm(gperokajWhite ~ SurveyYear + Sex + SurveyYear * Sex, dat.design))
 
 #AGE
 exp_interaction_CI_age <- function(response_var, design) {
@@ -674,17 +671,26 @@ exp_interaction_CI_age(response_var = "avgRedokaj", design = dat.design)
 exp_interaction_CI_age(response_var = "avgWhiteokaj", design = dat.design)
 #portion size
 glm_interaction_CI_age(response_var = "gperokajMeat", design = dat.design)
-m1 <- svyglm(gperokajMeat ~ SurveyYear + AgeG + SurveyYear * AgeG, dat.design)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 glm_interaction_CI_age(response_var = "gperokajProcessed", design = dat.design)
-m1 <- svyglm(gperokajProcessed ~ SurveyYear + AgeG + SurveyYear * AgeG, dat.design)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 glm_interaction_CI_age(response_var = "gperokajRed", design = dat.design)
-m1 <- svyglm(gperokajRed ~ SurveyYear + AgeG + SurveyYear * AgeG, dat.design)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 glm_interaction_CI_age(response_var = "gperokajWhite", design = dat.design)
-m1 <- svyglm(gperokajWhite ~ SurveyYear + AgeG + SurveyYear * AgeG, dat.design)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
+
+#p values (use only after setting SurveyYear to numeric)
+summary(svyglm(MeatDays ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
+summary(svyglm(ProcessedDays ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
+summary(svyglm(RedDays ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
+summary(svyglm(WhiteDays ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
+summary(svyglm(NoMeatDays ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
+
+summary(svyglm(avgMeatokaj ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
+summary(svyglm(avgProcessedokaj ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
+summary(svyglm(avgRedokaj ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
+summary(svyglm(avgWhiteokaj ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
+
+summary(svyglm(gperokajMeat ~ SurveyYear + AgeG + SurveyYear * AgeG, dat.design))
+summary(svyglm(gperokajProcessed ~ SurveyYear + AgeG + SurveyYear * AgeG, dat.design))
+summary(svyglm(gperokajRed ~ SurveyYear + AgeG + SurveyYear * AgeG, dat.design))
+summary(svyglm(gperokajWhite ~ SurveyYear + AgeG + SurveyYear * AgeG, dat.design))
 
 #EQV
 exp_interaction_CI_eqv <- function(response_var, design) {
@@ -748,7 +754,7 @@ glm_interaction_CI_eqv <- function(response_var, design) {
     sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2 + se["eqv2"]^2 + se["SurveyYear11:eqv2"]^2),
     sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2 + se["eqv3"]^2 + se["SurveyYear11:eqv3"]^2)
   )
-  # CI for combinations
+  #CI for combinations
   lower_bound <- round(b_combinations - 1.96 * se_combinations, 2)
   upper_bound <- round(b_combinations + 1.96 * se_combinations, 2)
   #data frame to present the results
@@ -773,23 +779,29 @@ exp_interaction_CI_eqv(response_var = "avgRedokaj", design = dat.design)
 exp_interaction_CI_eqv(response_var = "avgWhiteokaj", design = dat.design)
 #portion size
 glm_interaction_CI_eqv(response_var = "gperokajMeat", design = dat.design)
-m1 <- svyglm(gperokajMeat ~ SurveyYear + eqv + SurveyYear * eqv, dat.design)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 glm_interaction_CI_eqv(response_var = "gperokajProcessed", design = dat.design)
-m1 <- svyglm(gperokajProcessed ~ SurveyYear + eqv + SurveyYear * eqv, dat.design)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 glm_interaction_CI_eqv(response_var = "gperokajRed", design = dat.design)
-m1 <- svyglm(gperokajRed ~ SurveyYear + eqv + SurveyYear * eqv, dat.design)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 glm_interaction_CI_eqv(response_var = "gperokajWhite", design = dat.design)
-m1 <- svyglm(gperokajWhite ~ SurveyYear + eqv + SurveyYear * eqv, dat.design)
-summary(m1) #p for trend value (use only after setting SurveyYear to numeric)
 
+#p values (use only after setting SurveyYear to numeric)
+summary(svyglm(MeatDays ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
+summary(svyglm(ProcessedDays ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
+summary(svyglm(RedDays ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
+summary(svyglm(WhiteDays ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
+summary(svyglm(NoMeatDays ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
+
+summary(svyglm(avgMeatokaj ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
+summary(svyglm(avgProcessedokaj ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
+summary(svyglm(avgRedokaj ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
+summary(svyglm(avgWhiteokaj ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
+
+summary(svyglm(gperokajMeat ~ SurveyYear + eqv + SurveyYear * eqv, dat.design))
+summary(svyglm(gperokajProcessed ~ SurveyYear + eqv + SurveyYear * eqv, dat.design))
+summary(svyglm(gperokajRed ~ SurveyYear + eqv + SurveyYear * eqv, dat.design))
+summary(svyglm(gperokajWhite ~ SurveyYear + eqv + SurveyYear * eqv, dat.design))
 
 #######################DECOMPOSITION ANALYSIS###############
 
-c1/4
-c2/4
 #total meat
 #convert occasions per day variable to occasions per MEAT day (to add up for decomp)
 zo1 <- 1.238239
@@ -931,13 +943,11 @@ dm1+om1+pm1
 
 
 #######################COLORBLIND PALETTE##################
-# Define the color palette
+#define the color palette
 cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
-
-# Create a data frame with the colors and their corresponding labels
+#data frame with the colors and their corresponding labels
 palette_df <- data.frame(color = cbPalette, label = 1:length(cbPalette))
-
-# Generate the bar plot
+#display colors
 ggplot(palette_df, aes(x = factor(label), y = 1, fill = color)) +
   geom_bar(stat = "identity", width = 1) +
   scale_fill_identity() +
@@ -992,7 +1002,6 @@ plot1 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Cate
   guides(linetype = guide_legend(override.aes = list(color = "black")))
 print(plot1)
 
-
 #Occasions
 m2 <- svyglm(avgProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
 m3 <- svyglm(avgRedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
@@ -1026,7 +1035,6 @@ plot2 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedOccasions, color =
   theme(text = element_text(family = "Avenir", size = 12))
 print(plot2)
 
-
 #portion size
 m2 <- svyglm(gperokajProcessed ~ SurveyYear, family=poisson(link = "log"), dat.design)
 m3 <- svyglm(gperokajRed ~ SurveyYear, family=poisson(link = "log"), dat.design)
@@ -1059,7 +1067,6 @@ plot3 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedPortion, color = C
   theme_classic() +
   theme(text = element_text(family = "Avenir", size = 12))
 print(plot3)
-
 
 #combine all into 1 figure
 #Remove the legend from plot2 and plot3
