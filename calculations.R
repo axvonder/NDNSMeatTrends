@@ -198,7 +198,7 @@ exp_summary <- function(response_var, design) {
   #add these values to the summary object
   exp_summary_obj$coefficients <- rbind(exp_summary_obj$coefficients, 
                                         c(diff_coefs, se_diff, ci_diff[1], ci_diff[2], NA))
-  rownames(exp_summary_obj$coefficients)[nrow(exp_summary_obj$coefficients)] <- "Diff (Intercept - SurveyYear11)"
+  rownames(exp_summary_obj$coefficients)[nrow(exp_summary_obj$coefficients)] <- "Diff"
   
   return(exp_summary_obj)
 }
@@ -248,22 +248,22 @@ lm_summary <- function(response_var, design) {
   }
   
   # ADD A LITTLE 'difference of years 1 to 11 + 95%CI' ROW AT THE BOTTOM OF THE OUTPUT
-  # correcting the name for Intercept term [it's a wee bit messed up]
+  #correct the name for Intercept term [it's a wee bit messed up]
   rownames(summary_obj$coefficients)[rownames(summary_obj$coefficients) == ""] <- "Intercept"
   
-  # calculate the sum of the intercept and SurveyYear11 coefficients
+  #calculate the difference of the intercept + SurveyYear11 coefficients
   diff_coefs <- summary_obj$coefficients["Intercept", "Coef"] - summary_obj$coefficients["SurveyYear11", "Coef"]
   
-  # calculate the standard error of the sum
+  #calculate the standard error of the difference
   se_diff <- sqrt(sum(summary_obj$coefficients[c("Intercept", "SurveyYear11"), "Std. Error"]^2))
   
-  # calculate the confidence interval for the sum
+  #calculate the confidence interval for the difference
   ci_diff <- c(diff_coefs - 1.96 * se_diff, diff_coefs + 1.96 * se_diff)
   
-  # add these values to the summary object
+  #add these values to the summary at the bottom
   summary_obj$coefficients <- rbind(summary_obj$coefficients, 
                                     c(diff_coefs, se_diff, ci_diff[1], ci_diff[2], NA))
-  rownames(summary_obj$coefficients)[nrow(summary_obj$coefficients)] <- "Sum (Intercept + SurveyYear11)"
+  rownames(summary_obj$coefficients)[nrow(summary_obj$coefficients)] <- "Diff"
   
   return(summary_obj)
 }
