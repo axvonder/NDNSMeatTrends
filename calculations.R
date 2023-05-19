@@ -291,7 +291,6 @@ summary(svyglm(MeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
 summary(svyglm(ProcessedDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
 summary(svyglm(RedDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
 summary(svyglm(WhiteDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
-summary(svyglm(NoMeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
 
 summary(svyglm(avgMeatokaj ~ SurveyYear, family=poisson(link = "log"), dat.design))
 summary(svyglm(avgProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design))
