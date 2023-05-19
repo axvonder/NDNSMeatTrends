@@ -78,17 +78,8 @@ survey_design <- svydesign(id = ~area, strata = ~astrata5, weights = ~wti, data 
 
 #####################TABLE 1 - DEMOGRAPHICS#######################
 
-#subset population into years 1 and 11
-dat1 <- dat[dat$SurveyYear == 1, ]
-dat11 <- dat[dat$SurveyYear == 11, ]
-
 #specify survey weighting structure for descriptive analysis
-survey_design1 <- dat1 %>%
-  as_survey_design(ids = area, # cluster ids
-                   weights = wti, # weight variable created above
-                   strata = astrata5 # sampling was stratified by district
-  )
-survey_design11 <- dat11 %>%
+survey_design <- dat %>%
   as_survey_design(ids = area, # cluster ids
                    weights = wti, # weight variable created above
                    strata = astrata5 # sampling was stratified by district
@@ -105,55 +96,41 @@ survey_design11 %>%
 
 #count age groups 
 #unweighted Ns
-table(dat1$AgeG)
-table(dat11$AgeG)
+table(dat$AgeG)
 #weighted%s
-survey_design1 %>%
-  group_by(AgeG) %>%
-  summarise(pct = survey_mean())
-survey_design11 %>%
+survey_design %>%
   group_by(AgeG) %>%
   summarise(pct = survey_mean())
 
+min(dat$Age)
+max(dat$Age)
+
 #sex
 #unweighted Ns
-table(dat1$Sex)
-table(dat11$Sex)
+table(dat$Sex)
 #weighted %s
-survey_design1 %>%
-  group_by(Sex) %>%
-  summarise(pct = survey_mean())
-survey_design11 %>%
+survey_design %>%
   group_by(Sex) %>%
   summarise(pct = survey_mean())
 
 #income tertiles
 #unweighted Ns
-table(dat1$eqv)
-table(dat11$eqv)
+table(dat$eqv)
 #missing
-1629-(506+448+470)
-1076-(315+307+312)
+15332-(4449+4457+4474)
 #percentages of income tertiles
-survey_design1 %>%
-  group_by(eqv) %>%
-  summarise(pct = survey_mean())
-survey_design11 %>%
+survey_design %>%
   group_by(eqv) %>%
   summarise(pct = survey_mean())
 
 
-#count % of meat consumers Year 1
-survey_design1 <- mutate(survey_design1, meat_gt_0 = as.numeric(sumMeatg > 0))
-survey_design1 %>%
+#count % of meat consumers
+survey_design <- mutate(survey_design, meat_gt_0 = as.numeric(sumMeatg > 0))
+table(survey_design$variables$meat_gt_0)
+survey_design %>%
   group_by(meat_gt_0) %>%
-  summarise(pct = survey_mean()) #96.4%
+  summarise(pct = survey_mean()) #95.0%
 
-#count % of meat consumers Year 11
-survey_design11 <- mutate(survey_design11, meat_gt_0 = as.numeric(sumMeatg > 0))
-survey_design11 %>%
-  group_by(meat_gt_0) %>%
-  summarise(pct = survey_mean()) #93.4%
 
 
 #############################TABLE 2 - MAIN ANALYSIS ###################
@@ -205,6 +182,23 @@ exp_summary <- function(response_var, design) {
                                                   cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
                                                   symbols = c("***", "**", "*", ".", " "))
   }
+  #ADD A LITTLE 'difference of years 1 to 11 + 95%CI' ROW AT THE BOTTOM OF THE OUTPUT
+  #correcting the name for Intercept term [it's a wee bit messed up]
+  rownames(exp_summary_obj$coefficients)[rownames(exp_summary_obj$coefficients) == ""] <- "Intercept"
+  
+  #calculate the difference of the beta coefficients for Intercept and SurveyYear11
+  diff_coefs <- exp_summary_obj$coefficients["Intercept", "Exp(Coef)"] - exp_summary_obj$coefficients["SurveyYear11", "Exp(Coef)"]
+  
+  #calculate the standard error of the difference
+  se_diff <- sqrt(sum(exp_summary_obj$coefficients[c("Intercept", "SurveyYear11"), "Std. Error"]^2))
+  
+  #calculate the confidence interval for the difference
+  ci_diff <- c(diff_coefs - 1.96 * se_diff, diff_coefs + 1.96 * se_diff)
+  
+  #add these values to the summary object
+  exp_summary_obj$coefficients <- rbind(exp_summary_obj$coefficients, 
+                                        c(diff_coefs, se_diff, ci_diff[1], ci_diff[2], NA))
+  rownames(exp_summary_obj$coefficients)[nrow(exp_summary_obj$coefficients)] <- "Diff (Intercept - SurveyYear11)"
   
   return(exp_summary_obj)
 }
@@ -253,16 +247,31 @@ lm_summary <- function(response_var, design) {
                                               symbols = c("***", "**", "*", ".", " "))
   }
   
+  # ADD A LITTLE 'difference of years 1 to 11 + 95%CI' ROW AT THE BOTTOM OF THE OUTPUT
+  # correcting the name for Intercept term [it's a wee bit messed up]
+  rownames(summary_obj$coefficients)[rownames(summary_obj$coefficients) == ""] <- "Intercept"
+  
+  # calculate the sum of the intercept and SurveyYear11 coefficients
+  diff_coefs <- summary_obj$coefficients["Intercept", "Coef"] - summary_obj$coefficients["SurveyYear11", "Coef"]
+  
+  # calculate the standard error of the sum
+  se_diff <- sqrt(sum(summary_obj$coefficients[c("Intercept", "SurveyYear11"), "Std. Error"]^2))
+  
+  # calculate the confidence interval for the sum
+  ci_diff <- c(diff_coefs - 1.96 * se_diff, diff_coefs + 1.96 * se_diff)
+  
+  # add these values to the summary object
+  summary_obj$coefficients <- rbind(summary_obj$coefficients, 
+                                    c(diff_coefs, se_diff, ci_diff[1], ci_diff[2], NA))
+  rownames(summary_obj$coefficients)[nrow(summary_obj$coefficients)] <- "Sum (Intercept + SurveyYear11)"
+  
   return(summary_obj)
 }
-
-
 ##MEAT DAYS##
 exp_summary(response_var = "MeatDays", design = dat.design)
 exp_summary(response_var = "ProcessedDays", design = dat.design)
 exp_summary(response_var = "RedDays", design = dat.design)
 exp_summary(response_var = "WhiteDays", design = dat.design)
-exp_summary(response_var = "NoMeatDays", design = dat.design)
 
 ##Meat occasions##
 exp_summary(response_var = "avgMeatokaj", design = dat.design)
@@ -833,7 +842,8 @@ om1
 pm1
 #check that the separate percents add up to 100%
 dm1+om1+pm1
-
+c1/4
+c2/4
 
 #processed meat
 #convert occasions per day variable to occasions per MEAT day (to add up for decomp)
@@ -866,7 +876,7 @@ om1
 pm1
 #check that the separate percents add up to 100%
 dm1+om1+pm1
-
+cdelta/4
 
 
 
@@ -901,7 +911,7 @@ om1
 pm1
 #check that the separate percents add up to 100%
 dm1+om1+pm1
-
+cdelta/4
 
 
 
@@ -938,7 +948,7 @@ om1
 pm1
 #check that the separate percents add up to 100%
 dm1+om1+pm1
-
+cdelta/4
 
 
 
@@ -959,7 +969,7 @@ ggplot(palette_df, aes(x = factor(label), y = 1, fill = color)) +
 #######################FIGURE 1###########################
 #function for Survey Year x axis labels
 custom_x_labels <- function(x) {
-  labels <- ifelse(x == 1, "2008", sprintf("'%02d", x + 7))
+  labels <- ifelse(x == 1, "2008/09", sprintf("'%02d/'%02d", x + 7, (x + 7) %% 100 + 1))
   return(labels)
 }
 #line plot of meat trends
@@ -994,11 +1004,12 @@ plot1 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Cate
   scale_color_manual(values = color_palette) +
   scale_linetype_manual(name = "Line Type",
                         values = c("solid" = "solid", "dotted" = "dotted"),
-                        labels = c("solid" = "Actual data", "dotted" = "2008-2019 trend")) +
+                        labels = c("solid" = "Actual data", "dotted" = "2008/09-2018/19 trend")) +
   labs(x = "Survey Year", y = "Number of days (avg. across 4-day period)", color = "Meat category") +
   scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
   theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12)) +
+  theme(text = element_text(family = "Avenir", size = 12),
+        axis.text.x = element_text(angle = 45, hjust = 1)) +
   guides(linetype = guide_legend(override.aes = list(color = "black")))
 print(plot1)
 
@@ -1032,7 +1043,9 @@ plot2 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedOccasions, color =
   labs(x = "Survey Year", y = "Number of meat-containing occasions/day", color = "Meat category") +
   scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
   theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12))
+  theme(text = element_text(family = "Avenir", size = 12),
+        axis.text.x = element_text(angle = 45, hjust = 1)) +
+  guides(linetype = guide_legend(override.aes = list(color = "black")))
 print(plot2)
 
 #portion size
@@ -1065,7 +1078,9 @@ plot3 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedPortion, color = C
   labs(x = "Survey Year", y = "Portion size (g)/meat-containing occasion", color = "Meat category") +
   scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
   theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12))
+  theme(text = element_text(family = "Avenir", size = 12),
+        axis.text.x = element_text(angle = 45, hjust = 1)) +
+  guides(linetype = guide_legend(override.aes = list(color = "black")))
 print(plot3)
 
 #combine all into 1 figure
@@ -1125,7 +1140,7 @@ bar_plot <- ggplot(melted_data, aes(x = Meat, y = value, fill = variable)) +
                                "Days_Delta" = "Meat-eating days",
                                "Occasions_Delta" = "Meat-eating occasions",
                                "Portion_Size_Delta" = "Portion size of meat")) +
-  labs(x = "Meat categories", y = "Change in meat consumption (g/capita/day)", fill = "Meat reduction behaviours") +
+  labs(x = "Meat sub-type", y = "Change in meat consumption (g/capita/day)", fill = "Meat reduction behaviours") +
   theme_classic() +
   theme(text = element_text(family = "Avenir", size = 12)) 
 #define the y-axis limits (didn't like the cuts it was giving me)
@@ -1143,7 +1158,7 @@ ggsave(file_path, bar_plot, width = 10, height = 8, dpi = 600)
 
 ###############FIGURE 3#################################
 custom_x_labels <- function(x) {
-  labels <- ifelse(x == 1, "2008", sprintf("'%02d", x + 7))
+  labels <- ifelse(x == 1, "2008/09", sprintf("'%02d/'%02d", x + 7, (x + 7) %% 100 + 1))
   return(labels)
 }
 
@@ -1301,7 +1316,7 @@ ggsave(file_path, combined_plot, width = 16, height = 12, dpi = 600)
 ###############SI FIGURE 1###########################
 #function for survey year x axis
 custom_x_labels <- function(x) {
-  labels <- ifelse(x == 1, "2008", sprintf("'%02d", x + 7))
+  labels <- ifelse(x == 1, "2008/09", sprintf("'%02d/'%02d", x + 7, (x + 7) %% 100 + 1))
   return(labels)
 }
 
