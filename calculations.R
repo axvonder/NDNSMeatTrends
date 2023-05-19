@@ -1121,11 +1121,11 @@ melted_data <- reshape2::melt(meat_data, id.vars = "Meat")
 bar_plot <- ggplot(melted_data, aes(x = Meat, y = value, fill = variable)) +
   geom_bar(stat = "identity", position = "dodge", width = 0.5) +
   scale_fill_manual(values = c("Total_Delta" = "black", "Days_Delta" = "#CB181D", "Occasions_Delta" = "#FB6A4A", "Portion_Size_Delta" = "#FCBBA1"),
-                    labels = c("Total_Delta" = "Total ∆",
-                               "Days_Delta" = "∆ days",
-                               "Occasions_Delta" = "∆ occasions",
-                               "Portion_Size_Delta" = "∆ portion size")) +
-  labs(x = "Meat categories", y = "Change in meat consumption (g/capita/day)", fill = "Consumption categories") +
+                    labels = c("Total_Delta" = "Total change",
+                               "Days_Delta" = "Meat-eating days",
+                               "Occasions_Delta" = "Meat-eating occasions",
+                               "Portion_Size_Delta" = "Portion size of meat")) +
+  labs(x = "Meat categories", y = "Change in meat consumption (g/capita/day)", fill = "Meat reduction behaviours") +
   theme_classic() +
   theme(text = element_text(family = "Avenir", size = 12)) 
 #define the y-axis limits (didn't like the cuts it was giving me)
