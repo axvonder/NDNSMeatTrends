@@ -99,7 +99,7 @@ survey_design11 %>%
 table(dat$AgeG)
 #weighted%s
 survey_design %>%
-  group_by(AgeG) %>%
+  group_by(AgeG) %>% 
   summarise(pct = survey_mean())
 
 min(dat$Age)
