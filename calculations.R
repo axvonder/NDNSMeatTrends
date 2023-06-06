@@ -1,4 +1,3 @@
-library(dplyr)
 library(tidyverse)
 library(srvyr)
 library(survey)
@@ -104,6 +103,7 @@ survey_design %>%
 
 min(dat$Age)
 max(dat$Age)
+table(dat$Age)
 
 #sex
 #unweighted Ns
@@ -1280,10 +1280,10 @@ plot4 <- ggplot(white_days_prop_long, aes(x = SurveyYear, y = proportion, fill =
 plot4
 
 #plot titles
-plot1 <- plot1 + ggtitle("Total meat") + theme(plot.title = element_text(hjust = 0.5))
-plot2 <- plot2 + ggtitle("Processed meat") + theme(plot.title = element_text(hjust = 0.5), legend.position = "none")
-plot3 <- plot3 + ggtitle("Red meat") + theme(plot.title = element_text(hjust = 0.5), legend.position = "none")
-plot4 <- plot4 + ggtitle("White meat") + theme(plot.title = element_text(hjust = 0.5), legend.position = "none")
+plot1 <- plot1 + ggtitle("Total meat") + theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+plot2 <- plot2 + ggtitle("Processed meat") + theme(plot.title = element_text(hjust = 0.5, face = "bold"), legend.position = "none")
+plot3 <- plot3 + ggtitle("Red meat") + theme(plot.title = element_text(hjust = 0.5, face = "bold"), legend.position = "none")
+plot4 <- plot4 + ggtitle("White meat") + theme(plot.title = element_text(hjust = 0.5, face = "bold"), legend.position = "none")
 #remove the x-axis label from plot1 and plot2
 plot1 <- plot1 + xlab(NULL)
 plot2 <- plot2 + xlab(NULL)
@@ -1313,6 +1313,7 @@ ggsave(file_path, combined_plot, width = 16, height = 12, dpi = 600)
 
 
 ###############SI FIGURE 1###########################
+#############MAYBE REMOVE THIS?#######################
 #function for survey year x axis
 custom_x_labels <- function(x) {
   labels <- ifelse(x == 1, "2008/09", sprintf("'%02d/'%02d", x + 7, (x + 7) %% 100 + 1))

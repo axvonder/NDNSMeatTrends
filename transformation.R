@@ -1,8 +1,6 @@
 library(chron)
 library(tidyverse)
-library(lubridate)
 library(janitor)
-library(dplyr)
 #set wd
 setwd("/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data")
 #upload datasets (raw diet data from NDNS; access instructions in publication)
