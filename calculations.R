@@ -36,22 +36,14 @@ dat$eqv <- as.factor(dat$eqv)
 #sex as factor
 dat$Sex <- as.factor(dat$Sex)
 dat$Sex <- factor(dat$Sex, levels = c(1, 2), labels = c("M", "F"))#had some problems, just makes things easier to change to letters
-#create variable for '% of SMTs that contain meat'
-#breakfast
-dat$BMeatokajperc <- dat$BMeatokaj/dat$Btotokaj
-dat$BProcessedokajperc <- dat$BProcessedokaj/dat$Btotokaj
-dat$BRedokajperc <- dat$BRedokaj/dat$Btotokaj
-dat$BWhiteokajperc <- dat$BWhiteokaj/dat$Btotokaj
-#lunch
-dat$LMeatokajperc <- dat$LMeatokaj/dat$Ltotokaj
-dat$LProcessedokajperc <- dat$LProcessedokaj/dat$Ltotokaj
-dat$LRedokajperc <- dat$LRedokaj/dat$Ltotokaj
-dat$LWhiteokajperc <- dat$LWhiteokaj/dat$Ltotokaj
-#dinner
-dat$DMeatokajperc <- dat$DMeatokaj/dat$Dtotokaj
-dat$DProcessedokajperc <- dat$DProcessedokaj/dat$Dtotokaj
-dat$DRedokajperc <- dat$DRedokaj/dat$Dtotokaj
-dat$DWhiteokajperc <- dat$DWhiteokaj/dat$Dtotokaj
+#for SMT analyses -> set 0 values to NA (to only capture meals in which meat was consumed)
+varnames <- c("BsumMeatg", "BsumProcessedg", "BsumRedg", "BsumWhiteg", 
+              "LsumMeatg", "LsumProcessedg", "LsumRedg", "LsumWhiteg", 
+              "DsumMeatg", "DsumProcessedg", "DsumRedg", "DsumWhiteg")
+#replace 0 with NA for each variable
+for (var in varnames) {
+  dat[[var]] <- ifelse(dat[[var]] == 0, NA, dat[[var]])
+}
 
 #set survey designs
 #make survey year factor or numeric, depending on analyses intended to be completed
@@ -265,6 +257,9 @@ lm_summary <- function(response_var, design) {
                                     c(diff_coefs, se_diff, ci_diff[1], ci_diff[2], NA))
   rownames(summary_obj$coefficients)[nrow(summary_obj$coefficients)] <- "Diff"
   
+  #round the coefficients and the confidence intervals to 2 decimal places
+  summary_obj$coefficients <- round(summary_obj$coefficients, 2)
+  
   return(summary_obj)
 }
 ##MEAT DAYS##
@@ -328,34 +323,24 @@ table(dat$SurveyYear)
 
 #########################SI TABLE 1 - STM ANALYSIS########################
 #BREAKFAST
-#overall n values
+#overall n values (n of participants who ate breakfast)
 sum(complete.cases(dat.design$variables$BMeatokaj[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$BMeatokaj[dat.design$variables$SurveyYear == 11])) #n values year 11
-##Meat occasions##
-exp_summary(response_var = "BMeatokaj", design = dat.design)
-exp_summary(response_var = "BProcessedokaj", design = dat.design)
-exp_summary(response_var = "BRedokaj", design = dat.design)
-exp_summary(response_var = "BWhiteokaj", design = dat.design)
 
 ##g per occasion##
-lm_summary(response_var = "BgperokajMeat", design = dat.design)
-lm_summary(response_var = "BgperokajProcessed", design = dat.design)
-lm_summary(response_var = "BgperokajRed", design = dat.design)
-lm_summary(response_var = "BgperokajWhite", design = dat.design)
+lm_summary(response_var = "BsumMeatg", design = dat.design)
+lm_summary(response_var = "BsumProcessedg", design = dat.design)
+lm_summary(response_var = "BsumRedg", design = dat.design)
+lm_summary(response_var = "BsumWhiteg", design = dat.design)
 lm_summary(response_var = "BokajGrams", design = dat.design)
 
-#p values and counts (only need counts for portion size as it'll differ by meat type which isn't the case for occasions)
-summary(svyglm(BMeatokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
-summary(svyglm(BProcessedokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
-summary(svyglm(BRedokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
-summary(svyglm(BWhiteokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
-
-summary(svyglm(BgperokajMeat ~ SurveyYear, dat.design))
-sum(complete.cases(dat.design$variables$BgperokajMeat[dat.design$variables$SurveyYear == 1])) #n values year 1
-sum(complete.cases(dat.design$variables$BgperokajMeat[dat.design$variables$SurveyYear == 11])) #n values year 11
-summary(svyglm(BgperokajProcessed ~ SurveyYear, dat.design))
-sum(complete.cases(dat.design$variables$BgperokajProcessed[dat.design$variables$SurveyYear == 1])) #n values year 1
-sum(complete.cases(dat.design$variables$BgperokajProcessed[dat.design$variables$SurveyYear == 11])) #n values year 11
+#p values and counts (need counts for portion size as it'll differ by meat type)
+summary(svyglm(BsumMeatg ~ SurveyYear, dat.design))
+sum(complete.cases(dat.design$variables$BsumMeatg[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$BsumMeatg[dat.design$variables$SurveyYear == 11])) #n values year 11
+summary(svyglm(BsumProcessedg ~ SurveyYear, dat.design))
+sum(complete.cases(dat.design$variables$BsumProcessedg[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$BsumProcessedg[dat.design$variables$SurveyYear == 11])) #n values year 11
 summary(svyglm(BgperokajRed ~ SurveyYear, dat.design))
 sum(complete.cases(dat.design$variables$BgperokajRed[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$BgperokajRed[dat.design$variables$SurveyYear == 11])) #n values year 11
@@ -367,14 +352,9 @@ sum(complete.cases(dat.design$variables$BokajGrams[dat.design$variables$SurveyYe
 sum(complete.cases(dat.design$variables$BokajGrams[dat.design$variables$SurveyYear == 11])) #n values year 11
 
 #LUNCH
-#overall n values
+#overall n values (n of participants who ate lunch)
 sum(complete.cases(dat.design$variables$LMeatokaj[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$LMeatokaj[dat.design$variables$SurveyYear == 11])) #n values year 11
-##Meat occasions##
-exp_summary(response_var = "LMeatokaj", design = dat.design)
-exp_summary(response_var = "LProcessedokaj", design = dat.design)
-exp_summary(response_var = "LRedokaj", design = dat.design)
-exp_summary(response_var = "LWhiteokaj", design = dat.design)
 
 ##g per occasion##
 lm_summary(response_var = "LgperokajMeat", design = dat.design)
@@ -383,12 +363,7 @@ lm_summary(response_var = "LgperokajRed", design = dat.design)
 lm_summary(response_var = "LgperokajWhite", design = dat.design)
 lm_summary(response_var = "LokajGrams", design = dat.design)
 
-#p values and counts (only need counts for portion size as it'll differ by meat type which isn't the case for occasions)
-summary(svyglm(LMeatokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
-summary(svyglm(LProcessedokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
-summary(svyglm(LRedokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
-summary(svyglm(LWhiteokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
-
+#p values and counts (need counts for portion size as it'll differ by meat type)
 summary(svyglm(LgperokajMeat ~ SurveyYear, dat.design))
 sum(complete.cases(dat.design$variables$LgperokajMeat[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$LgperokajMeat[dat.design$variables$SurveyYear == 11])) #n values year 11
@@ -406,14 +381,9 @@ sum(complete.cases(dat.design$variables$LokajGrams[dat.design$variables$SurveyYe
 sum(complete.cases(dat.design$variables$LokajGrams[dat.design$variables$SurveyYear == 11])) #n values year 11
 
 #DINNER
-#overall n values
+#overall n values (n of participants who ate dinner)
 sum(complete.cases(dat.design$variables$DMeatokaj[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$DMeatokaj[dat.design$variables$SurveyYear == 11])) #n values year 11
-##Meat occasions##
-exp_summary(response_var = "DMeatokaj", design = dat.design)
-exp_summary(response_var = "DProcessedokaj", design = dat.design)
-exp_summary(response_var = "DRedokaj", design = dat.design)
-exp_summary(response_var = "DWhiteokaj", design = dat.design)
 
 ##g per occasion##
 lm_summary(response_var = "DgperokajMeat", design = dat.design)
@@ -422,12 +392,7 @@ lm_summary(response_var = "DgperokajRed", design = dat.design)
 lm_summary(response_var = "DgperokajWhite", design = dat.design)
 lm_summary(response_var = "DokajGrams", design = dat.design)
 
-#p values and counts (only need counts for portion size as it'll differ by meat type which isn't the case for occasions)
-summary(svyglm(DMeatokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
-summary(svyglm(DProcessedokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
-summary(svyglm(DRedokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
-summary(svyglm(DWhiteokaj ~ SurveyYear, family = poisson(link = "log"), dat.design))
-
+#p values and counts (need counts for portion size as it'll differ by meat type)
 summary(svyglm(DgperokajMeat ~ SurveyYear, dat.design))
 sum(complete.cases(dat.design$variables$DgperokajMeat[dat.design$variables$SurveyYear == 1])) #n values year 1
 sum(complete.cases(dat.design$variables$DgperokajMeat[dat.design$variables$SurveyYear == 11])) #n values year 11
@@ -1313,7 +1278,25 @@ ggsave(file_path, combined_plot, width = 16, height = 12, dpi = 600)
 
 
 ###############SI FIGURE 1###########################
-#############MAYBE REMOVE THIS?#######################
+#############REMOVED FROM ANALYSIS#######################
+
+#create variable for '% of SMTs that contain meat'
+#breakfast
+dat$BMeatokajperc <- dat$BMeatokaj/dat$Btotokaj
+dat$BProcessedokajperc <- dat$BProcessedokaj/dat$Btotokaj
+dat$BRedokajperc <- dat$BRedokaj/dat$Btotokaj
+dat$BWhiteokajperc <- dat$BWhiteokaj/dat$Btotokaj
+#lunch
+dat$LMeatokajperc <- dat$LMeatokaj/dat$Ltotokaj
+dat$LProcessedokajperc <- dat$LProcessedokaj/dat$Ltotokaj
+dat$LRedokajperc <- dat$LRedokaj/dat$Ltotokaj
+dat$LWhiteokajperc <- dat$LWhiteokaj/dat$Ltotokaj
+#dinner
+dat$DMeatokajperc <- dat$DMeatokaj/dat$Dtotokaj
+dat$DProcessedokajperc <- dat$DProcessedokaj/dat$Dtotokaj
+dat$DRedokajperc <- dat$DRedokaj/dat$Dtotokaj
+dat$DWhiteokajperc <- dat$DWhiteokaj/dat$Dtotokaj
+
 #function for survey year x axis
 custom_x_labels <- function(x) {
   labels <- ifelse(x == 1, "2008/09", sprintf("'%02d/'%02d", x + 7, (x + 7) %% 100 + 1))

@@ -98,7 +98,7 @@ table(dat$itemContainMeat)
 #create singular "meat type" variable
 #ONLY for meat items that have ONE meat type. Mixed meat items will remain unclassified (-99)
 #Unclassified, mixed meat items, n = 3,566
-# 0 = no meat, 1 = processed meat, 2 = unprocessed red meat, 3 = unprocessed white meat
+#0 = no meat, 1 = processed meat, 2 = unprocessed red meat, 3 = unprocessed white meat
 dat$itemMeatType <- case_when(
   dat$itemContainNoMeat == 1 ~ 0,
   dat$itemContainProcessed == 1 & dat$itemMixedMeat == 0 ~ 1,
@@ -108,14 +108,14 @@ dat$itemMeatType <- case_when(
 )
 table(dat$itemMeatType)
 #counts total number of food items consumed per day
-# Function to calculate and clean total items per day
+#calculate and clean total items per day
 calc_total_items_per_day <- function(data, day) {
   zz <- data[data$DayNo == day, c("seriali", "Sex")]
   zz_day <- as_tibble(zz %>% group_by(seriali, Sex) %>% mutate(!!paste0("Day", day, "TotalNo") := n()))
   zz_day_clean <- zz_day %>% distinct(seriali, .keep_all = TRUE)
   return(zz_day_clean[, c(1, 3)])
 }
-# Calculate total items per day and merge with dat
+#calculate total items per day and merge with dat
 for (day in 1:4) {
   zz_day_clean <- calc_total_items_per_day(dat, day)
   dat <- merge(dat, zz_day_clean, by = "seriali", all.x = TRUE)
@@ -170,7 +170,9 @@ dat <- dat %>%
   fill(ProcessedDays, RedDays, WhiteDays, MeatDays, NoMeatDays) %>%
   fill(ProcessedDays, RedDays, WhiteDays, MeatDays, NoMeatDays, .direction = "up")
 #sum food(g) information by eating occasion
-column_names <- c("Beefg", "Lambg", "Porkg", "ProcessedRedMeatg", "OtherRedMeatg", "Burgersg", "Sausagesg", "Offalg", "Poultryg", "ProcessedPoultryg", "GameBirdsg", "TotalGrams", "Energykcal")
+column_names <- c("Beefg", "Lambg", "Porkg", "ProcessedRedMeatg", "OtherRedMeatg",
+                  "Burgersg", "Sausagesg", "Offalg", "Poultryg", "ProcessedPoultryg",
+                  "GameBirdsg", "TotalGrams", "Energykcal")
 for (col in column_names) {
   okaj <- dat %>% group_by(seriali, DayNo, EatingOkaj) %>% summarise(!!paste0("okaj", col) := sum(!!sym(col)))
   dat <- merge.data.frame(okaj, dat, all = TRUE)
@@ -319,7 +321,7 @@ ph <- dat %>%
   filter('1' %in% MealBlock) %>%
   ungroup() %>%
   group_by(seriali) %>%
-  #create variable for each meat type averaged by meal block
+  #create variable for each meat type by meal block
   mutate(BProcessedokaj = sum(okajContainProcessed)) %>%
   mutate(BRedokaj = sum(okajContainRed)) %>%
   mutate(BWhiteokaj = sum(okajContainWhite)) %>%
@@ -340,7 +342,7 @@ ph <- dat %>%
   filter('2' %in% MealBlock) %>%
   ungroup() %>%
   group_by(seriali) %>%
-  #create variable for each meat type averaged by meal block
+  #create variable for each meat type by meal block
   mutate(LProcessedokaj = sum(okajContainProcessed)) %>%
   mutate(LRedokaj = sum(okajContainRed)) %>%
   mutate(LWhiteokaj = sum(okajContainWhite)) %>%
@@ -361,7 +363,7 @@ ph <- dat %>%
   filter('3' %in% MealBlock) %>%
   ungroup() %>%
   group_by(seriali) %>%
-  #create variable for each meat type averaged by meal block
+  #create variable for each meat type by meal block
   mutate(DProcessedokaj = sum(okajContainProcessed)) %>%
   mutate(DRedokaj = sum(okajContainRed)) %>%
   mutate(DWhiteokaj = sum(okajContainWhite)) %>%
@@ -476,23 +478,7 @@ dat <- dat %>%
   mutate(gperokajRed = (sumRedg/totRedokaj)) %>%
   mutate(gperokajWhite = (sumWhiteg/totWhiteokaj)) %>%
   mutate(gperokajMeat = (sumMeatg/totMeatokaj))
-#create variable for avg g per meat category per corresponding meat occasion for SMTs (breakfast, lunch, dinner)
-dat <- dat %>%
-  mutate(BgperokajProcessed = (BsumProcessedg/BProcessedokaj)) %>%
-  mutate(BgperokajRed = (BsumRedg/BRedokaj)) %>%
-  mutate(BgperokajWhite = (BsumWhiteg/BWhiteokaj)) %>%
-  mutate(BgperokajMeat = (BsumMeatg/BMeatokaj))
-dat <- dat %>%
-  mutate(LgperokajProcessed = (LsumProcessedg/LProcessedokaj)) %>%
-  mutate(LgperokajRed = (LsumRedg/LRedokaj)) %>%
-  mutate(LgperokajWhite = (LsumWhiteg/LWhiteokaj)) %>%
-  mutate(LgperokajMeat = (LsumMeatg/LMeatokaj))
-dat <- dat %>%
-  mutate(DgperokajProcessed = (DsumProcessedg/DProcessedokaj)) %>%
-  mutate(DgperokajRed = (DsumRedg/DRedokaj)) %>%
-  mutate(DgperokajWhite = (DsumWhiteg/DWhiteokaj)) %>%
-  mutate(DgperokajMeat = (DsumMeatg/DMeatokaj))
-#remove all unnecessary variables
+#Keep only necessary variables
 final <- dat[ , which(names(dat) %in% c("seriali", "SurveyYear", "Sex", "Country",
                                         "DiaryDaysCompleted", "Age", "ProcessedDays",
                                         "RedDays", "WhiteDays", "MeatDays", "NoMeatDays",
@@ -511,11 +497,7 @@ final <- dat[ , which(names(dat) %in% c("seriali", "SurveyYear", "Sex", "Country
                                         "okajWhiteperc", "okajMeatperc", "okajNoMeatperc",
                                         "gperokajProcessed", "gperokajRed", "gperokajWhite",
                                         "gperokajMeat", "sumMeatg", "sumProcessedg",
-                                        "sumRedg", "sumWhiteg", "BgperokajProcessed",
-                                        "BgperokajRed", "BgperokajWhite", "BgperokajMeat",
-                                        "LgperokajProcessed", "LgperokajRed", "LgperokajWhite",
-                                        "LgperokajMeat", "DgperokajProcessed", "DgperokajRed",
-                                        "DgperokajWhite", "DgperokajMeat",
+                                        "sumRedg", "sumWhiteg",
                                         "BokajGrams", "LokajGrams", "DokajGrams",
                                         "Btotokaj", "Ltotokaj", "Dtotokaj"))]
 #write data to dataset

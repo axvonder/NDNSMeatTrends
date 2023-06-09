@@ -21,7 +21,8 @@ yr5_6 <- yr5_6 %>%
 yr7_8 <- yr7_8 %>%
   mutate(eqvinc = ntile(ifelse(eqvinc == -1, NA, eqvinc), 3))
 #change yr 9-11 -1 values to NAs to match the other datasets
-yr9_11 <- na_if(yr9_11, -1)
+yr9_11 <- yr9_11 %>%
+  mutate(eqv3 = na_if(eqv3, -1))
 #harmonize variable names
 yr1_4 <- yr1_4 %>%
   rename(wti = wti_UKY1234) %>%
