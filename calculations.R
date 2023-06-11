@@ -276,7 +276,7 @@ exp_summary <- function(response_var, design) {
   rownames(exp_summary_obj$coefficients)[nrow(exp_summary_obj$coefficients)] <- "Diff"
   
   #round the coefficients and the confidence intervals to 2 decimal places
-  summary_obj$coefficients <- round(summary_obj$coefficients, 2)
+  exp_summary_obj$coefficients <- round(exp_summary_obj$coefficients, 2)
   
   return(exp_summary_obj)
 }
@@ -373,6 +373,7 @@ summary(svyglm(MeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
 summary(svyglm(ProcessedDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
 summary(svyglm(RedDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
 summary(svyglm(WhiteDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
+summary(svyglm(NoMeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
 
 summary(svyglm(avgMeatokaj ~ SurveyYear, family=poisson(link = "log"), dat.design))
 summary(svyglm(avgProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design))
@@ -671,98 +672,6 @@ summary(svyglm(gperokajRed ~ SurveyYear + Sex + SurveyYear * Sex, dat.design))
 summary(svyglm(gperokajWhite ~ SurveyYear + Sex + SurveyYear * Sex, dat.design))
 
 #AGE
-exp_interaction_CI_age <- function(response_var, design) {
-  model_formula <- as.formula(paste(response_var, "~ SurveyYear + AgeG + SurveyYear * AgeG"))
-  model <- svyglm(model_formula, family = poisson(link = "log"), design = design)
-  model_summary <- summary(model)
-  betas <- coef(model)
-  se <- coef(model_summary)[, "Std. Error"]
-  #combinations of coefficients
-  b_combinations <- c(
-    betas["(Intercept)"],
-    betas["(Intercept)"] + betas["SurveyYear11"],
-    betas["(Intercept)"] + betas["AgeG1"],
-    betas["(Intercept)"] + betas["AgeG1"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG1"],
-    betas["(Intercept)"] + betas["AgeG2"],
-    betas["(Intercept)"] + betas["AgeG2"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG2"],
-    betas["(Intercept)"] + betas["AgeG4"],
-    betas["(Intercept)"] + betas["AgeG4"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG4"],
-    betas["(Intercept)"] + betas["AgeG5"],
-    betas["(Intercept)"] + betas["AgeG5"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG5"]
-  )
-  #standard errors for combinations
-  se_combinations <- c(
-    se["(Intercept)"],
-    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
-    se["AgeG1"],
-    sqrt(se["AgeG1"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG1"]^2),
-    se["AgeG2"],
-    sqrt(se["AgeG2"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG2"]^2),
-    se["AgeG4"],
-    sqrt(se["AgeG4"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG4"]^2),
-    se["AgeG5"],
-    sqrt(se["AgeG5"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG5"]^2)
-  )
-  #exponentiated coefficients and CI for combinations
-  exp_coef <- round(exp(b_combinations), 2)
-  lower_bound <- round(exp(b_combinations - 1.96 * se_combinations), 2)
-  upper_bound <- round(exp(b_combinations + 1.96 * se_combinations), 2)
-  #data frame to present the results
-  result_table <- data.frame(
-    Group = c("18-40_Y1", "18-40_Y11", "<10_Y1", "<10_Y11", "11-17_Y1", "11-17_Y11", "41-59_Y1", "41-59_Y11", ">=60_Y1", ">=60_Y11"),
-    Beta = exp_coef,
-    Lower = lower_bound,
-    Upper = upper_bound
-  )
-  return(result_table)
-}
-glm_interaction_CI_age <- function(response_var, design) {
-  model_formula <- as.formula(paste(response_var, "~ SurveyYear + AgeG + SurveyYear * AgeG"))
-  model <- svyglm(model_formula, design = design)
-  model_summary <- summary(model)
-  betas <- coef(model)
-  se <- coef(model_summary)[, "Std. Error"]
-  #combinations of coefficients
-  b_combinations <- c(
-    betas["(Intercept)"],
-    betas["(Intercept)"] + betas["SurveyYear11"],
-    betas["(Intercept)"] + betas["AgeG1"],
-    betas["(Intercept)"] + betas["AgeG1"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG1"],
-    betas["(Intercept)"] + betas["AgeG2"],
-    betas["(Intercept)"] + betas["AgeG2"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG2"],
-    betas["(Intercept)"] + betas["AgeG4"],
-    betas["(Intercept)"] + betas["AgeG4"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG4"],
-    betas["(Intercept)"] + betas["AgeG5"],
-    betas["(Intercept)"] + betas["AgeG5"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG5"]
-  )
-  #standard errors for combinations
-  se_combinations <- c(
-    se["(Intercept)"],
-    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
-    se["AgeG1"],
-    sqrt(se["AgeG1"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG1"]^2),
-    se["AgeG2"],
-    sqrt(se["AgeG2"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG2"]^2),
-    se["AgeG4"],
-    sqrt(se["AgeG4"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG4"]^2),
-    se["AgeG5"],
-    sqrt(se["AgeG5"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG5"]^2)
-  )
-  # CI for combinations
-  lower_bound <- round(b_combinations - 1.96 * se_combinations, 2)
-  upper_bound <- round(b_combinations + 1.96 * se_combinations, 2)
-  #data frame to present the results
-  result_table <- data.frame(
-    Group = c("18-40_Y1", "18-40_Y11", "<10_Y1", "<10_Y11", "11-17_Y1", "11-17_Y11", "41-59_Y1", "41-59_Y11", ">=60_Y1", ">=60_Y11"),
-    Beta = b_combinations,
-    Lower = lower_bound,
-    Upper = upper_bound
-  )
-  return(result_table)
-}
-
-
-
 exp_interaction_CI_age <- function(response_var, design) {
   model_formula <- as.formula(paste(response_var, "~ SurveyYear + AgeG + SurveyYear * AgeG"))
   model <- svyglm(model_formula, family = poisson(link = "log"), design = design)
