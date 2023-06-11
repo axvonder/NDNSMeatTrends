@@ -71,11 +71,9 @@ This project is open access.
 
 ## 8. Contact
 
-For any questions or concerns, please contact the project maintainers:
+For any questions or concerns, please contact the project maintainer:
 
 - Alexander Vonderschmidt: a.vonderschmidt@sms.ed.ac.uk
-- Cristina Stewart: Cristina.Stewart@ed.ac.uk
-- Alexandra Bellows: abellows@exseed.ed.ac.uk
 
 ## 9. Acknowledgments
 
