@@ -1,49 +1,85 @@
+#########################################################################################################################
+#Title:
+#Last updated:
+#########################################################################################################################
+
+#AB Overall Comments:
+  # Add Title and Last updated. Maybe even a brief description of what this code is for
+  # Create more dividers in your code and add more spacing :) This makes it easier to read.
+  # Create separate datasets for different levels of analysis. Example: datokaj, datmeal, datday, datfood
+  # Avoid reusing datasets with the same name. I know it is easier to type but also easier to be running code on the wrong data. 
+  # rm(dat) will also remove data from your environment that is no longer useful if you want to free up some space!
+
+#-----------------------------------------------------------------------------#
+#Loading Libraries And Setting Working Directory
+
 library(chron)
 library(tidyverse)
-library(lubridate)
+#library(lubridate)
 library(janitor)
-library(dplyr)
+#library(dplyr)
+
+#-----------------------------------------------------------------------------#
 #set wd
-setwd("/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data")
-#upload datasets (raw diet data from NDNS; access instructions in publication)
-file_names <- c("ndns_rp_yr1-4a_foodleveldietarydata_uk_v2.csv",
-                "ndns_rp_yr5-6a_foodleveldietarydata_v2.csv",
-                "ndns_rp_yr7-8a_foodleveldietarydata.csv",
-                "ndns_rp_yr9a_foodleveldietarydata_uk_20210831.csv",
-                "ndns_rp_yr10a_foodleveldietarydata_uk_20210831.csv",
-                "ndns_rp_yr11a_foodleveldietarydata_uk_20210831.csv")
-# Combine datasets
-data_list <- lapply(file_names, read.csv)
-combined_data <- Reduce(function(x, y) merge(x, y, all = TRUE), data_list)
-#save final merged dataset
-write.csv(combined_data,"/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data/combfoodlev.csv", row.names = F)
+#setwd("/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data")
+
+  #AB Working Directory
+  setwd("C:/Users/abellows/OneDrive - University of Edinburgh/NDNS/Data")
+#-----------------------------------------------------------------------------#
+  
+#-----------------------------------------------------------------------------#
+# #upload datasets (raw diet data from NDNS; access instructions in publication)
+#  file_names <- c("ndns_rp_yr1-4a_foodleveldietarydata_uk_v2.csv",
+#                 "ndns_rp_yr5-6a_foodleveldietarydata_v2.csv",
+#                 "ndns_rp_yr7-8a_foodleveldietarydata.csv",
+#                 "ndns_rp_yr9a_foodleveldietarydata_uk_20210831.csv",
+#                 "ndns_rp_yr10a_foodleveldietarydata_uk_20210831.csv",
+#                 "ndns_rp_yr11a_foodleveldietarydata_uk_20210831.csv")
+# 
+# #-----------------------------------------------------------------------------#
+# # Combine datasets
+# data_list <- lapply(file_names, read.csv)
+# combined_data <- Reduce(function(x, y) merge(x, y, all = TRUE), data_list)
+# 
+# #save final merged dataset
+# write.csv(combined_data,"/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data/combfoodlev.csv", row.names = F)
+
+#-----------------------------------------------------------------------------#
 ##################### COMBINING DATA CHECKPOINT #################################
 #read in combined dataset (years 1 - 11 food level data)
 ult <- read.csv('combfoodlev.csv')
+
 #combine two age variables (age variable switched from "Age" to "AgeR" in years 7 & 8)
 ult$Age <- ifelse(is.na(ult$Age), ult$AgeR, ult$Age)
+
 #delete AgeR (so that only 1 age variable remains)
 ult <- ult[ , -which(names(ult) %in% c("AgeR"))]
+
 #change survey year to just numbers
 for (year_num in 1:11) {
   ult$SurveyYear <- ifelse(ult$SurveyYear == paste("NDNS Year", year_num), year_num, ult$SurveyYear)
 }
-table(ult$SurveyYear)
+  #Check
+  table(ult$SurveyYear)
+  
 #convert mealtime to usable time variable
 time<- c(ult$MealTime)
 ult$MealTime <- chron(times = time)
-#check
-options(max.print=1000000)
-table(ult$MealTime)
+  #check
+  options(max.print=1000000)
+  table(ult$MealTime)
+  
 #convert all times to seconds (easier for me to organize)
 ult$MealTime <- as.numeric(hms(ult$MealTime))
-#definte "breakfast" "lunch" and "dinner"
+
+#define "breakfast" "lunch" and "dinner"
 ult <- ult %>%
   mutate(MealBlock = case_when(
     (MealTime >= 21600 & MealTime <= 39600) ~ 1,     # 6:00 AM - 11:00 AM
     (MealTime >= 43200 & MealTime <= 54000) ~ 2,     # 12:00 PM - 3:00 PM
     (MealTime >= 57600 & MealTime <= 82800) ~ 3      # 4:00 PM - 11:00 PM
   ))
+
 #define eating occasions
 ult <- ult %>%
   #grouping by ID and Day
@@ -64,6 +100,7 @@ ult <- ult %>%
   #new variable which is cumulative sum of the trick variable created above
   mutate(EatingOkaj=cumsum(new_meal)) %>%
   ungroup()
+
 #cut out unnecessary variables for our analyses
 trim <- ult[ , -which(names(ult) %in% c("CoreBoost", "DiaryDate", "MealTimeDescription",
                                         "MainFoodGroupCode", "MainFoodGroupDesc",
@@ -74,6 +111,7 @@ trim <- ult[ , -which(names(ult) %in% c("CoreBoost", "DiaryDate", "MealTimeDescr
                                         "Fructoseg", "Sucroseg", "Maltoseg", "Lactoseg",
                                         "Nonmilkextrinsicsugarsg", "Intrinsicandmilksugarsg",
                                         "FreeSugars", "Englystfibreg"))]
+
 dat <- trim
 #add variable for "item contains [type] meat"
 dat$itemContainProcessed <- as.integer(rowSums(dat[, c("ProcessedRedMeatg",
@@ -86,17 +124,21 @@ dat$itemContainNoMeat <- as.integer(rowSums(dat[, c("ProcessedRedMeatg", "Proces
                                                     "Burgersg", "Sausagesg", "Beefg",
                                                     "Lambg", "Porkg", "OtherRedMeatg",
                                                     "Offalg", "Poultryg", "GameBirdsg")] > 0) == 0)
+
 # Calculate itemMixedMeat and itemContainMeat
 dat$itemMixedMeat <- as.integer((dat$itemContainProcessed & (dat$itemContainRed | dat$itemContainWhite)) |
                                   (dat$itemContainRed & (dat$itemContainProcessed | dat$itemContainWhite)) |
                                   (dat$itemContainWhite & (dat$itemContainProcessed | dat$itemContainRed)))
 dat$itemContainMeat <- as.integer(dat$itemContainProcessed | dat$itemContainRed | dat$itemContainWhite)
+
 #check counts
 table(dat$itemContainProcessed)
 table(dat$itemContainRed)
 table(dat$itemContainWhite)
 table(dat$itemMixedMeat)
 table(dat$itemContainMeat)
+
+#------------------------------------------------------------------------------#
 #create singular "meat type" variable
 #ONLY for meat items that have ONE meat type. Mixed meat items will remain unclassified (-99)
 #Unclassified, mixed meat items, n = 3,566
@@ -108,20 +150,25 @@ dat$itemMeatType <- case_when(
   dat$itemContainWhite == 1 & dat$itemMixedMeat == 0 ~ 3,
   TRUE ~ -99
 )
-table(dat$itemMeatType)
+  table(dat$itemMeatType)
+  
+#------------------------------------------------------------------------------#
 #counts total number of food items consumed per day
-# Function to calculate and clean total items per day
-calc_total_items_per_day <- function(data, day) {
-  zz <- data[data$DayNo == day, c("seriali", "Sex")]
-  zz_day <- as_tibble(zz %>% group_by(seriali, Sex) %>% mutate(!!paste0("Day", day, "TotalNo") := n()))
-  zz_day_clean <- zz_day %>% distinct(seriali, .keep_all = TRUE)
-  return(zz_day_clean[, c(1, 3)])
-}
+  # Function to calculate and clean total items per day
+  calc_total_items_per_day <- function(data, day) {
+    zz <- data[data$DayNo == day, c("seriali", "Sex")]
+    zz_day <- as_tibble(zz %>% group_by(seriali, Sex) %>% mutate(!!paste0("Day", day, "TotalNo") := n()) %>%
+                          ungroup())
+    zz_day_clean <- zz_day %>% distinct(seriali, .keep_all = TRUE)
+    return(zz_day_clean[, c(1, 3)])
+  }
+  
 # Calculate total items per day and merge with dat
 for (day in 1:4) {
   zz_day_clean <- calc_total_items_per_day(dat, day)
   dat <- merge(dat, zz_day_clean, by = "seriali", all.x = TRUE)
 }
+  
 #categorize a day as processed-meat-containing, red-meat-containing, white-meat-containing, no-meat-containing
 dat <- dat %>%
   #group by ID & day number
@@ -152,7 +199,10 @@ dat <- dat %>%
   mutate(anyNoMeat = case_when(
     anyMeat == 0 ~ 1,
     TRUE ~ 0
-  ))
+  )) %>%
+    ungroup() # you always want to ungroup after grouping. It makes the data more manageable
+
+#Creating Dataset that has one observation per person (For Summary of Days)
 placeholder <- dat %>%
   #count number of meat type days
   distinct(seriali, .keep_all = TRUE) %>%
@@ -164,21 +214,51 @@ placeholder <- dat %>%
   mutate(RedDays = sum(anyRed)) %>%
   mutate(WhiteDays = sum(anyWhite)) %>%
   mutate(MeatDays = sum(anyMeat)) %>%
-  mutate(NoMeatDays = sum(anyNoMeat))
-dat <- merge.data.frame(placeholder, dat, all = TRUE)
-dat <- dat %>%
-  #group by ID
-  group_by(seriali) %>%
-  fill(ProcessedDays, RedDays, WhiteDays, MeatDays, NoMeatDays) %>%
-  fill(ProcessedDays, RedDays, WhiteDays, MeatDays, NoMeatDays, .direction = "up")
-#sum food(g) information by eating occasion
-column_names <- c("Beefg", "Lambg", "Porkg", "ProcessedRedMeatg", "OtherRedMeatg", "Burgersg", "Sausagesg", "Offalg", "Poultryg", "ProcessedPoultryg", "GameBirdsg", "TotalGrams", "Energykcal")
-for (col in column_names) {
-  okaj <- dat %>% group_by(seriali, DayNo, EatingOkaj) %>% summarise(!!paste0("okaj", col) := sum(!!sym(col)))
-  dat <- merge.data.frame(okaj, dat, all = TRUE)
-}
+  mutate(NoMeatDays = sum(anyNoMeat)) %>%
+  ungroup() %>%
+  #only selecting variables needed for merging - will make code run faster and avoid mistakes
+  select(seriali, ProcessedDays, RedDays, WhiteDays, MeatDays, NoMeatDays)
+
+
+dat <- left_join(dat, placeholder, by="seriali") # this just makes it faster
+  #is there a reason later why we are joining these? I prefer to keep them as separate datasets. 
+
+#This code is no longer needed with left join
+  # dat <- dat %>%
+  #   #group by ID
+  #   group_by(seriali) %>%
+  #   fill(ProcessedDays, RedDays, WhiteDays, MeatDays, NoMeatDays) %>%
+  #   fill(ProcessedDays, RedDays, WhiteDays, MeatDays, NoMeatDays, .direction = "up")
+
+# #sum food(g) information by eating occasion
+  #AB Comment: I would always try to keep separate datasets for variables of different hierarchy
+# column_names <- c("Beefg", "Lambg", "Porkg", "ProcessedRedMeatg", "OtherRedMeatg", "Burgersg", "Sausagesg", "Offalg", "Poultryg", "ProcessedPoultryg", "GameBirdsg", "TotalGrams", "Energykcal")
+# for (col in column_names) {
+#   okaj <- dat %>% group_by(seriali, DayNo, EatingOkaj) %>% summarise(!!paste0("okaj", col) := sum(!!sym(col)))
+#   dat <- merge.data.frame(okaj, dat, all = TRUE)
+# }
+
+#This code does the exact same thing as function above but gives you only occasions. 
+okaj2<- dat %>% 
+  group_by(seriali, DayNo, EatingOkaj) %>%
+  summarise(
+    okajBeefg=sum(Beefg),
+    okajLambg=sum(Lambg),
+    okajPorkg=sum(Porkg),
+    okajProcessedRedMeatg=sum(ProcessedRedMeatg),
+    okajOtherRedMeatg=sum(OtherRedMeatg),
+    okajBurgersg=sum(Burgersg),
+    okajSausagesg=sum(Sausagesg),
+    okajOffalg=sum(Offalg),
+    okajPoultryg=sum(Poultryg),
+    okajProcessedPoultryg=sum(ProcessedPoultryg),
+    okajGameBirdsg=sum(GameBirdsg),
+    okajTotalGrams=sum(TotalGrams),
+    okajTotalEnergyKcal=sum(Energykcal)) %>%
+  ungroup()
+ 
 #add variable for "occasion contains [type] meat"
-dat <- dat %>%
+okaj2 <- okaj2 %>%
   mutate(
     okajContainProcessed = case_when(
       (okajProcessedRedMeatg > 0 | okajProcessedPoultryg > 0 | okajBurgersg > 0 | okajSausagesg > 0) ~ 1,
@@ -212,45 +292,51 @@ dat <- dat %>%
       TRUE ~ 0
     )
   )
-#transform dataset to go from per item (current) to per occasion
-trans <- dat[(dat$new_meal == 1), ]
-trans <- trans %>%
-  #grouping by ID and Day
-  group_by(seriali,DayNo) %>%
-  #Sorting by ID and Mealtime - this gets n_food variable in the right order
-  arrange(seriali, DayNo, MealTime)
-#do a little checkypoo on the data
-tes <- trans[, c("seriali", "DayNo", "MealTime", "diff", "new_meal")]
-#get rid of 'per-item' variables (slims down dataset, makes it easier to work with)
-transtrim <- trans[ , -which(names(trans) %in% c("FoodNumber", "FoodName", "Energykcal",
-                                                 "Proteing", "Fatg", "Carbohydrateg", "TotalGrams",
-                                                 "Sodiummg", "Potassiummg", "Calciummg",
-                                                 "Magnesiummg", "Phosphorusmg", "Ironmg",
-                                                 "Haemironmg", "Nonhaemironmg", "Coppermg",
-                                                 "Zincmg", "Chloridemg", "Retinol.µg", "Thiaminmg",
-                                                 "Totalcarotene.µg", "Alphacarotene.µg",
-                                                 "Betacarotene.µg", "Betacryptoxanthin.µg",
-                                                 "VitaminAretinolequivalents.µg", "VitaminD.µg",
-                                                 "VitaminEmg", "Riboflavinmg", "Niacinequivalentmg",
-                                                 "VitaminB6mg", "VitaminB12.µg", "Folate.µg",
-                                                 "Pantothenicacidmg", "Biotin.µg", "VitaminCmg",
-                                                 "Alcoholg", "Waterg", "Totalsugarsg",
-                                                 "FreeSugarsg", "AOACFibreg", "Totalnitrogeng",
-                                                 "Manganesemg", "Iodine.µg", "Selenium.µg",
-                                                 "Cholesterolmg", "Saturatedfattyacidsg",
-                                                 "CisMonounsaturatedfattyacidsg", "Cisn6fattyacidsg",
-                                                 "Cisn3fattyacidsg", "Transfattyacidsg",
-                                                 "Fruitg", "FriedFruitg", "FruitJuiceg",
-                                                 "SmoothieFruitg", "Tomatoesg", "TomatoPureeg",
-                                                 "Brassicaceaeg", "YellowRedGreeng", "Beansg",
-                                                 "Nutsg", "OtherVegg", "Beefg", "Lambg",
-                                                 "Porkg", "ProcessedRedMeatg", "OtherRedMeatg",
-                                                 "Burgersg", "Sausagesg", "Offalg", "Poultryg",
-                                                 "ProcessedPoultryg", "GameBirdsg", "WhiteFishg",
-                                                 "OilyFishg", "CannedTunag", "Shellfishg",
-                                                 "CottageCheeseg", "CheddarCheeseg", "OtherCheeseg"))]
-#remove all eating occasions that have less than 50 kcal (n = 68,407; no participants lost)
+
+##AB Comments: next step will be to remerge okaj 2 with the other variables you would like to keep at the occasion level. 
+
+# #transform dataset to go from per item (current) to per occasion
+# trans <- dat[(dat$new_meal == 1), ]
+# trans <- trans %>%
+#   #grouping by ID and Day
+#   group_by(seriali,DayNo) %>%
+#   #Sorting by ID and Mealtime - this gets n_food variable in the right order
+#   arrange(seriali, DayNo, MealTime)
+# #do a little checkypoo on the data
+# tes <- trans[, c("seriali", "DayNo", "MealTime", "diff", "new_meal")]
+# #get rid of 'per-item' variables (slims down dataset, makes it easier to work with)
+# transtrim <- trans[ , -which(names(trans) %in% c("FoodNumber", "FoodName", "Energykcal",
+#                                                  "Proteing", "Fatg", "Carbohydrateg", "TotalGrams",
+#                                                  "Sodiummg", "Potassiummg", "Calciummg",
+#                                                  "Magnesiummg", "Phosphorusmg", "Ironmg",
+#                                                  "Haemironmg", "Nonhaemironmg", "Coppermg",
+#                                                  "Zincmg", "Chloridemg", "Retinol.µg", "Thiaminmg",
+#                                                  "Totalcarotene.µg", "Alphacarotene.µg",
+#                                                  "Betacarotene.µg", "Betacryptoxanthin.µg",
+#                                                  "VitaminAretinolequivalents.µg", "VitaminD.µg",
+#                                                  "VitaminEmg", "Riboflavinmg", "Niacinequivalentmg",
+#                                                  "VitaminB6mg", "VitaminB12.µg", "Folate.µg",
+#                                                  "Pantothenicacidmg", "Biotin.µg", "VitaminCmg",
+#                                                  "Alcoholg", "Waterg", "Totalsugarsg",
+#                                                  "FreeSugarsg", "AOACFibreg", "Totalnitrogeng",
+#                                                  "Manganesemg", "Iodine.µg", "Selenium.µg",
+#                                                  "Cholesterolmg", "Saturatedfattyacidsg",
+#                                                  "CisMonounsaturatedfattyacidsg", "Cisn6fattyacidsg",
+#                                                  "Cisn3fattyacidsg", "Transfattyacidsg",
+#                                                  "Fruitg", "FriedFruitg", "FruitJuiceg",
+#                                                  "SmoothieFruitg", "Tomatoesg", "TomatoPureeg",
+#                                                  "Brassicaceaeg", "YellowRedGreeng", "Beansg",
+#                                                  "Nutsg", "OtherVegg", "Beefg", "Lambg",
+#                                                  "Porkg", "ProcessedRedMeatg", "OtherRedMeatg",
+#                                                  "Burgersg", "Sausagesg", "Offalg", "Poultryg",
+#                                                  "ProcessedPoultryg", "GameBirdsg", "WhiteFishg",
+#                                                  "OilyFishg", "CannedTunag", "Shellfishg",
+#                                                  "CottageCheeseg", "CheddarCheeseg", "OtherCheeseg"))]
+
+#------------------------------------------------------------------------------#
+#remove all eating occasions that have less than 50 kcal (n = 68,407; no participants lost) per XXX definition
 datokaj <- transtrim[(transtrim$okajEnergykcal >= 50), ]
+
 #re-create eating occasion numbers after removing all occasions that don't meet 50 kcal requirement
 datokaj <- datokaj %>%
   #grouping by ID and Day
@@ -271,9 +357,11 @@ datokaj <- datokaj %>%
   #new variable which is cumulative sum of the trick variable created above
   mutate(EatingOkaj=cumsum(new_meal)) %>%
   ungroup()
-dat <- datokaj
+
+#dat <- datokaj # would recommend saying "datokaj, datday, datitem"
+
 #create variables for number of meat-containing occasions per day (per meat type)
-dat <- dat %>%
+datokaj <- datokaj %>%
   #grouping by ID and Day
   group_by(seriali, DayNo) %>%
   #Sorting by ID and Mealtime
@@ -290,8 +378,9 @@ dat <- dat %>%
   mutate(okajWhiteperday = max(okajWhiteperday)) %>%
   mutate(okajMeatperday = max(okajMeatperday)) %>%
   mutate(okajNoMeatperday = max(okajNoMeatperday))
+
 #create variables for g meat per occasion
-dat <- dat %>%
+datokaj <- datokaj %>%
   rowwise() %>%
   #add meat per occasion total g
   mutate(Processedgperokaj = sum(okajProcessedRedMeatg, okajProcessedPoultryg,
@@ -302,19 +391,23 @@ dat <- dat %>%
   mutate(Meatgperokaj = sum(okajProcessedRedMeatg, okajProcessedPoultryg,
                             okajBurgersg, okajSausagesg, okajBeefg, okajLambg,
                             okajPorkg, okajOtherRedMeatg, okajOffalg, okajPoultryg,
-                            okajGameBirdsg))
+                            okajGameBirdsg)) %>%
+  ungroup() # should also always ungroup after rowwise
+
 #prep for avg g of meat per occasion variable
-dat <- dat %>%
+datokaj <- datokaj %>%
   #grouping by ID
   group_by(seriali) %>%
   #sum all occasions of meat consumption
   mutate(sumProcessedg = sum(Processedgperokaj)) %>%
   mutate(sumRedg = sum(Redgperokaj)) %>%
   mutate(sumWhiteg = sum(Whitegperokaj)) %>%
-  mutate(sumMeatg = sum(Meatgperokaj))
+  mutate(sumMeatg = sum(Meatgperokaj)) %>%
+  ungroup()
+
 #create variable for number of meat-eating meal blocks per day (breakfast, lunch, dinner)
 #breakfast
-ph <- dat %>% 
+datmeal <- datokaj %>% 
   #grouping by ID
   group_by(seriali, DayNo, MealBlock) %>%
   #select only breakfast meals - n = 58,697 breakfast occasions
@@ -333,9 +426,12 @@ ph <- dat %>%
   mutate(BsumWhiteg = sum(Whitegperokaj)) %>%
   mutate(BsumMeatg = sum(Meatgperokaj)) %>%
   mutate(BokajGrams = mean(okajTotalGrams, na.rm = TRUE))
-dat <- merge.data.frame(ph, dat, all = TRUE)
+
+#AB: I don't think you need this anymore if we keep these separate? 
+#dat <- merge.data.frame(ph, dat, all = TRUE)
+
 #lunch
-ph <- dat %>% 
+ph <- datokaj %>% 
   #grouping by ID
   group_by(seriali, DayNo, MealBlock) %>%
   #select only breakfast meals - n = 80,282 lunch occasions
@@ -354,7 +450,9 @@ ph <- dat %>%
   mutate(LsumWhiteg = sum(Whitegperokaj)) %>%
   mutate(LsumMeatg = sum(Meatgperokaj)) %>%
   mutate(LokajGrams = mean(okajTotalGrams, na.rm = TRUE))
-dat <- merge.data.frame(ph, dat, all = TRUE)
+
+datmeal <- left_join(datmeal, ph, by=c("seriali, DayNo")) #AB: double check this? I think you want to be merging on both id and day?
+
 #dinner
 ph <- dat %>% 
   #grouping by ID
@@ -376,6 +474,7 @@ ph <- dat %>%
   mutate(DsumMeatg = sum(Meatgperokaj)) %>%
   mutate(DokajGrams = mean(okajTotalGrams, na.rm = TRUE))
 dat <- merge.data.frame(ph, dat, all = TRUE)
+
 #create a variable for the total number of meat occasions per day across the diary days
 ph <- dat %>%
   #group by ID and Day number, select only 1 meal per day
@@ -390,6 +489,7 @@ ph <- dat %>%
   mutate(totMeatokaj = sum(okajMeatperday)) %>%
   mutate(totNoMeatokaj = sum(okajNoMeatperday))
 dat <- merge.data.frame(ph, dat, all = TRUE)
+
 #create variables for meal block portion sizes
 #fill in the NAs with surrounding data (for the B/L/D variables and the totalokaj variable)
 dat <- dat %>%
@@ -411,6 +511,7 @@ dat <- dat %>%
        DsumMeatg, totProcessedokaj, totRedokaj, totWhiteokaj, totMeatokaj, totNoMeatokaj,
        Btotokaj, Ltotokaj, Dtotokaj,
        .direction = "up")
+
 #look at distribution of meat occasions
 # Filter for non-zero meat consumption
 test <- dat %>%
@@ -438,6 +539,7 @@ proportion <- test %>%
 
 # Print the proportion of eating occasions for each meal block
 print(proportion)
+
 # Create a histogram of eating occasions throughout the day with meal blocks overlaid
 ggplot(test, aes(x = MealTime)) +
   geom_histogram(bins = 24, fill = "lightblue", color = "black") +
@@ -465,6 +567,7 @@ print(total_consumption)
 dat <- dat %>%
   #only unique IDs
   distinct(seriali, .keep_all = TRUE)
+
 #create an avg meat occasions per day variable
 dat <- dat %>%
   mutate(avgProcessedokaj = totProcessedokaj/DiaryDaysCompleted) %>%
@@ -472,12 +575,14 @@ dat <- dat %>%
   mutate(avgWhiteokaj = totWhiteokaj/DiaryDaysCompleted) %>%
   mutate(avgMeatokaj = totMeatokaj/DiaryDaysCompleted) %>%
   mutate(avgNoMeatokaj = totNoMeatokaj/DiaryDaysCompleted)
+
 #create variable for avg (across all days) g per meat category per corresponding meat occasion
 dat <- dat %>%
   mutate(gperokajProcessed = (sumProcessedg/totProcessedokaj)) %>%
   mutate(gperokajRed = (sumRedg/totRedokaj)) %>%
   mutate(gperokajWhite = (sumWhiteg/totWhiteokaj)) %>%
   mutate(gperokajMeat = (sumMeatg/totMeatokaj))
+
 #create variable for avg g per meat category per corresponding meat occasion for SMTs (breakfast, lunch, dinner)
 dat <- dat %>%
   mutate(BgperokajProcessed = (BsumProcessedg/BProcessedokaj)) %>%
@@ -494,6 +599,7 @@ dat <- dat %>%
   mutate(DgperokajRed = (DsumRedg/DRedokaj)) %>%
   mutate(DgperokajWhite = (DsumWhiteg/DWhiteokaj)) %>%
   mutate(DgperokajMeat = (DsumMeatg/DMeatokaj))
+
 #remove all unnecessary variables
 final <- dat[ , which(names(dat) %in% c("seriali", "SurveyYear", "Sex", "Country",
                                         "DiaryDaysCompleted", "Age", "ProcessedDays",
