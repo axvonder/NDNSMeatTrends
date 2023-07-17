@@ -1,0 +1,1570 @@
+---
+title: "Contribution of meat-free days, meat-free meals, and portion sizes to declines in meat consumption in the UK"
+author: "author of this RMD: AV"
+date: "2023-07-17"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\pagebreak
+# SET-UP
+## Load libraries and datasets
+
+
+```{r}
+library(tidyverse)
+library(srvyr)
+library(survey)
+library(effects)
+library(ggplot2)
+library(RColorBrewer)
+library(scales)
+library(gridExtra)
+library(cowplot)
+library(MASS)
+library(purrr)
+library(extrafont)
+font_import()
+#set wd
+setwd("/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data")
+#upload datasets
+dat <- read.csv('omega.csv')
+```
+
+\pagebreak
+# 
+\pagebreak
+# DATA PREP
+## Setting variables and weighting structures for analysis
+
+```{r, warning=FALSE}
+#########################EDITS AND CREATIONS#######################
+#remove participants with only 3 diary days (removed n = 323; n = 15,332)
+dat <- dat[!(dat$DiaryDaysCompleted == 3),]
+
+#define age brackets; <10 = 1; 11-17 = 2; 18-40 = 3; 41-59 = 4; >= 60 = 5
+dat <- dat %>%
+  mutate(AgeG = case_when(
+    Age <= 10 ~ 1,
+    Age >= 11 & Age <= 17 ~ 2,
+    Age >= 18 & Age <= 40 ~ 3,
+    Age >= 41 & Age <= 59 ~ 4,
+    Age >= 60 ~ 5,
+    TRUE ~ 99
+  ))
+#set reference group for age (18-40)
+dat$AgeG <- as.factor(dat$AgeG)
+dat$AgeG <- relevel(dat$AgeG, ref = 3)
+#eqv as factor
+dat$eqv <- as.factor(dat$eqv)
+#sex as factor
+dat$Sex <- as.factor(dat$Sex)
+dat$Sex <- factor(dat$Sex, levels = c(1, 2), labels = c("M", "F"))#had some problems, just makes things easier to change to letters
+#for SMT analyses -> set 0 values to NA (to only capture meals in which meat was consumed)
+varnames <- c("BsumMeatg", "BsumProcessedg", "BsumRedg", "BsumWhiteg", 
+              "LsumMeatg", "LsumProcessedg", "LsumRedg", "LsumWhiteg", 
+              "DsumMeatg", "DsumProcessedg", "DsumRedg", "DsumWhiteg")
+#replace 0 with NA for each variable
+for (var in varnames) {
+  dat[[var]] <- ifelse(dat[[var]] == 0, NA, dat[[var]])
+}
+
+#set survey designs
+#make survey year factor or numeric, depending on analyses intended to be completed
+#make sure to re-set the survey design after you've changed surveyyear's variable type
+dat$SurveyYear <- as.factor(dat$SurveyYear)#run for regression analyses
+dat$SurveyYear <- as.numeric(dat$SurveyYear)#run for plots and also for calculating p value trends across all years (not just y1 & y11)
+
+#RERUN SURVEY DESIGN IF YOU'VE CHANGE ANY VARIABLES TO/FROM FACTOR/NUMERIC
+#specify survey weighting structure for GLM
+dat$fpc <- 15332
+dat.design <-
+  svydesign(
+    id = ~area,
+    strata = ~astrata5,
+    data = dat,
+    weights = ~wti,
+    fpc = ~fpc
+  )
+
+#create the survey design object (for descriptive)
+survey_design <- svydesign(id = ~area, strata = ~astrata5, weights = ~wti, data = dat)
+```
+
+\pagebreak
+# 
+\pagebreak
+# TABLE 1
+## Demographic analysis
+
+
+```{r, warning=FALSE}
+#specify survey weighting structure for descriptive analysis
+survey_design <- dat %>%
+  as_survey_design(ids = area, # cluster ids
+                   weights = wti, # weight variable created above
+                   strata = astrata5 # sampling was stratified by district
+  )
+
+#count age groups 
+#unweighted Ns
+table(dat$AgeG)
+#weighted%s
+survey_design %>%
+  group_by(AgeG) %>% 
+  summarise(pct = survey_mean())
+
+#sex
+#unweighted Ns
+table(dat$Sex)
+#weighted %s
+survey_design %>%
+  group_by(Sex) %>%
+  summarise(pct = survey_mean())
+
+#income tertiles
+#unweighted Ns
+table(dat$eqv)
+#missing
+15332-(4449+4457+4474)
+#percentages of income tertiles
+survey_design %>%
+  group_by(eqv) %>%
+  summarise(pct = survey_mean())
+
+
+#count % of meat consumers
+survey_design <- mutate(survey_design, meat_gt_0 = as.numeric(sumMeatg > 0))
+table(survey_design$variables$meat_gt_0)
+survey_design %>%
+  group_by(meat_gt_0) %>%
+  summarise(pct = survey_mean()) #95.0%
+```
+
+
+\pagebreak
+# 
+\pagebreak
+# TABLE 2
+## Change in meat consumption behaviours by meat category
+
+```{r, warning=FALSE}
+#set weighting structure for regression analysis
+#set survey year to factor for regression analyses
+dat$SurveyYear <- as.factor(dat$SurveyYear)
+dat$fpc <- 15332
+dat.design <-
+  svydesign(
+    id = ~area,
+    strata = ~astrata5,
+    data = dat,
+    weights = ~wti,
+    fpc = ~fpc
+  )
+
+#define custom summary function for exponentiated coefficients
+#calculates 95% confidence interval values
+exp_summary <- function(response_var, design) {
+  #define the model formula dynamically
+  model_formula <- as.formula(paste(response_var, "~ SurveyYear"))
+  
+  #fit the model
+  model <- svyglm(model_formula, family=poisson(link = "log"), design = design)
+  
+  #exponentiate the sum between the intercept and SurveyYearX coefficients
+  exp_diff <- exp(coef(model)["(Intercept)"] + coef(model)[-1])
+  
+  #exponentiate the confidence intervals
+  conf_int <- confint(model)
+  exp_conf_int <- exp(conf_int)
+  
+  #calculate the confidence intervals for the differences
+  exp_diff_conf_int <- exp(conf_int["(Intercept)",] + conf_int[-1,])
+  
+  #create a new "summary" object
+  exp_summary_obj <- summary(model)
+  
+  #calculate the z-values and p-values
+  z_values <- coef(model) / exp_summary_obj$coefficients[, "Std. Error"]
+  p_values <- 2 * pnorm(-abs(z_values))
+  
+  #replace the coefficients and confidence intervals with the exponentiated values
+  exp_summary_obj$coefficients <- rbind(c(exp(coef(model)["(Intercept)"]), exp_summary_obj$coefficients[1, "Std. Error"], exp_conf_int[1,], p_values[1]),
+                                        cbind(exp_diff,
+                                              exp_summary_obj$coefficients[-1, "Std. Error"],
+                                              exp_diff_conf_int,
+                                              p_values[-1]))
+  
+  #update the column names
+  colnames(exp_summary_obj$coefficients) <- c("Exp(Coef)", "Std. Error", "2.5 %", "97.5 %", "Pr(>|z|)")
+  
+  #include the significance stars
+  signif.stars <- options("show.signif.stars")
+  if (is.logical(signif.stars) && signif.stars) {
+    exp_summary_obj$coefficients <- cbind(exp_summary_obj$coefficients, 
+                                          exp_summary_obj$coefficients[, "Pr(>|z|)"])
+    colnames(exp_summary_obj$coefficients)[ncol(exp_summary_obj$coefficients)] <- " "
+    exp_summary_obj$coefficients[, " "] <- symnum(exp_summary_obj$coefficients[, "Pr(>|z|)"], 
+                                                  corr = FALSE, na = FALSE,
+                                                  cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
+                                                  symbols = c("***", "**", "*", ".", " "))
+  }
+  #ADD A LITTLE 'difference of years 1 to 11 + 95%CI' ROW AT THE BOTTOM OF THE OUTPUT
+  #correcting the name for Intercept term [it's a wee bit messed up]
+  rownames(exp_summary_obj$coefficients)[rownames(exp_summary_obj$coefficients) == ""] <- "Intercept"
+  
+  #calculate the difference of the beta coefficients for Intercept and SurveyYear11
+  diff_coefs <- exp_summary_obj$coefficients["Intercept", "Exp(Coef)"] - exp_summary_obj$coefficients["SurveyYear11", "Exp(Coef)"]
+  
+  #calculate the standard error of the difference
+  se_diff <- sqrt(sum(exp_summary_obj$coefficients[c("Intercept", "SurveyYear11"), "Std. Error"]^2))
+  
+  #calculate the confidence interval for the difference
+  ci_diff <- c(diff_coefs - 1.96 * se_diff, diff_coefs + 1.96 * se_diff)
+  
+  #add these values to the summary object
+  exp_summary_obj$coefficients <- rbind(exp_summary_obj$coefficients, 
+                                        c(diff_coefs, se_diff, ci_diff[1], ci_diff[2], NA))
+  rownames(exp_summary_obj$coefficients)[nrow(exp_summary_obj$coefficients)] <- "Diff"
+  
+  #round the coefficients and the confidence intervals to 2 decimal places
+  exp_summary_obj$coefficients <- round(exp_summary_obj$coefficients, 2)
+  
+  return(exp_summary_obj)
+}
+lm_summary <- function(response_var, design) {
+  #define the model formula dynamically
+  model_formula <- as.formula(paste(response_var, "~ SurveyYear"))
+  
+  #fit the model
+  model <- svyglm(model_formula, design = design)
+  
+  #calculate the sum between the intercept and SurveyYearX coefficients
+  diff <- coef(model)["(Intercept)"] + coef(model)[-1]
+  
+  #calculate the confidence intervals
+  conf_int <- confint(model)
+  
+  #calculate the confidence intervals for the differences
+  diff_conf_int <- conf_int["(Intercept)",] + conf_int[-1,]
+  
+  #create a new "summary" object
+  summary_obj <- summary(model)
+  
+  #calculate the t-values and p-values
+  t_values <- coef(model) / summary_obj$coefficients[, "Std. Error"]
+  p_values <- 2 * pt(-abs(t_values), df.residual(model))
+  
+  #replace the coefficients and confidence intervals with the calculated values
+  summary_obj$coefficients <- rbind(c(coef(model)["(Intercept)"], summary_obj$coefficients[1, "Std. Error"], conf_int[1,], p_values[1]),
+                                    cbind(diff,
+                                          summary_obj$coefficients[-1, "Std. Error"],
+                                          diff_conf_int,
+                                          p_values[-1]))
+  
+  #update column names
+  colnames(summary_obj$coefficients) <- c("Coef", "Std. Error", "2.5 %", "97.5 %", "Pr(>|t|)")
+  
+  #include the significance stars
+  signif.stars <- options("show.signif.stars")
+  if (is.logical(signif.stars) && signif.stars) {
+    summary_obj$coefficients <- cbind(summary_obj$coefficients, 
+                                      summary_obj$coefficients[, "Pr(>|t|)"])
+    colnames(summary_obj$coefficients)[ncol(summary_obj$coefficients)] <- " "
+    summary_obj$coefficients[, " "] <- symnum(summary_obj$coefficients[, "Pr(>|t|)"], 
+                                              corr = FALSE, na = FALSE,
+                                              cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
+                                              symbols = c("***", "**", "*", ".", " "))
+  }
+  
+  # ADD A LITTLE 'difference of years 1 to 11 + 95%CI' ROW AT THE BOTTOM OF THE OUTPUT
+  #correct the name for Intercept term [it's a wee bit messed up]
+  rownames(summary_obj$coefficients)[rownames(summary_obj$coefficients) == ""] <- "Intercept"
+  
+  #calculate the difference of the intercept + SurveyYear11 coefficients
+  diff_coefs <- summary_obj$coefficients["Intercept", "Coef"] - summary_obj$coefficients["SurveyYear11", "Coef"]
+  
+  #calculate the standard error of the difference
+  se_diff <- sqrt(sum(summary_obj$coefficients[c("Intercept", "SurveyYear11"), "Std. Error"]^2))
+  
+  #calculate the confidence interval for the difference
+  ci_diff <- c(diff_coefs - 1.96 * se_diff, diff_coefs + 1.96 * se_diff)
+  
+  #add these values to the summary at the bottom
+  summary_obj$coefficients <- rbind(summary_obj$coefficients, 
+                                    c(diff_coefs, se_diff, ci_diff[1], ci_diff[2], NA))
+  rownames(summary_obj$coefficients)[nrow(summary_obj$coefficients)] <- "Diff"
+  
+  #round the coefficients and the confidence intervals to 2 decimal places
+  summary_obj$coefficients <- round(summary_obj$coefficients, 2)
+  
+  return(summary_obj)
+}
+
+##MEAT DAYS##
+exp_summary(response_var = "MeatDays", design = dat.design)
+exp_summary(response_var = "ProcessedDays", design = dat.design)
+exp_summary(response_var = "RedDays", design = dat.design)
+exp_summary(response_var = "WhiteDays", design = dat.design)
+exp_summary(response_var = "NoMeatDays", design = dat.design)
+
+##Meat occasions##
+exp_summary(response_var = "avgMeatokaj", design = dat.design)
+exp_summary(response_var = "avgProcessedokaj", design = dat.design)
+exp_summary(response_var = "avgRedokaj", design = dat.design)
+exp_summary(response_var = "avgWhiteokaj", design = dat.design)
+
+##g per occasion##
+lm_summary(response_var = "gperokajMeat", design = dat.design)
+lm_summary(response_var = "gperokajProcessed", design = dat.design)
+lm_summary(response_var = "gperokajRed", design = dat.design)
+lm_summary(response_var = "gperokajWhite", design = dat.design)
+lm_summary(response_var = "okajTotalGrams", design = dat.design)
+
+###CALCULATING P-VALUES###
+#set survey year to numeric for p-values
+dat$SurveyYear <- as.numeric(dat$SurveyYear)
+dat$fpc <- 15332
+dat.design <-
+  svydesign(
+    id = ~area,
+    strata = ~astrata5,
+    data = dat,
+    weights = ~wti,
+    fpc = ~fpc
+  )
+
+#p values (use only after setting SurveyYear to numeric)
+summary(svyglm(MeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
+summary(svyglm(ProcessedDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
+summary(svyglm(RedDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
+summary(svyglm(WhiteDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
+summary(svyglm(NoMeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
+
+summary(svyglm(avgMeatokaj ~ SurveyYear, family=poisson(link = "log"), dat.design))
+summary(svyglm(avgProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design))
+summary(svyglm(avgRedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design))
+summary(svyglm(avgWhiteokaj ~ SurveyYear, family=poisson(link = "log"), dat.design))
+
+summary(svyglm(gperokajMeat ~ SurveyYear, dat.design))
+summary(svyglm(gperokajProcessed ~ SurveyYear, dat.design))
+summary(svyglm(gperokajRed ~ SurveyYear, dat.design))
+summary(svyglm(gperokajWhite ~ SurveyYear, dat.design))
+
+#count #of participants in each survey year
+table(dat$SurveyYear)
+```
+
+
+\pagebreak
+# 
+\pagebreak
+# FIGURE 1
+## Trends of meat-eating behaviours by year
+
+
+```{r, warning=FALSE}
+#Set survey year factor for plots w/linear regression
+dat$SurveyYear <- as.factor(dat$SurveyYear)
+dat$fpc <- 15332
+dat.design <-
+  svydesign(
+    id = ~area,
+    strata = ~astrata5,
+    data = dat,
+    weights = ~wti,
+    fpc = ~fpc
+  )
+
+#function for Survey Year x axis labels
+custom_x_labels <- function(x) {
+  labels <- ifelse(x == 1, "2008/09", sprintf("'%02d/'%02d", x + 7, (x + 7) %% 100 + 1))
+  return(labels)
+}
+#line plot of meat trends
+#Days
+m2 <- svyglm(ProcessedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m3 <- svyglm(RedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m4 <- svyglm(WhiteDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m5 <- svyglm(NoMeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
+#fitted values for each model
+survey_years <- unique(dat.design$variables$SurveyYear)
+predictions <- data.frame(
+  SurveyYear = rep(survey_years, 4),
+  Category = factor(rep(c("ProcessedDays", "RedDays", "WhiteDays", "NoMeatDays"), each = length(survey_years))),
+  PredictedDays = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m5, newdata = data.frame(SurveyYear = survey_years), type = "response"))
+)
+#create a custom color palette using colorblind friendly colors
+color_palette <- c("#E69F00", "#0072B2", "#D55E00", "#009E73") #order: processed (orange), white (blue), red (red), no meat (green)
+#correct order
+predictions$Category <- factor(predictions$Category, levels = c("ProcessedDays", "WhiteDays", "RedDays", "NoMeatDays"))
+#category names
+levels(predictions$Category) <- c("Processed", "White", "Red", "No Meat")
+#convert SurveyYear to numeric
+predictions$SurveyYear <- as.numeric(as.character(predictions$SurveyYear))
+#create plot
+plot1 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
+  geom_point(size = 1) +
+  geom_line(aes(linetype = "solid")) +
+  geom_smooth(method = "glm", formula = 'y ~ x', se = FALSE, aes(linetype = "dotted", group = Category)) +
+  scale_color_manual(values = color_palette) +
+  scale_linetype_manual(name = "Line Type",
+                        values = c("solid" = "solid", "dotted" = "dotted"),
+                        labels = c("solid" = "Actual data", "dotted" = "2008/09-2018/19 trend")) +
+  labs(x = "Survey Year", y = "No. meat days/4-day period", color = "Meat category") +
+  scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
+  theme_classic() +
+  theme(text = element_text(family = "Times New Roman", size = 12),
+        axis.text.x = element_text(angle = 45, hjust = 1)) +
+  guides(linetype = guide_legend(override.aes = list(color = "black")))
+print(plot1)
+
+#Occasions
+m2 <- svyglm(avgProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m3 <- svyglm(avgRedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m4 <- svyglm(avgWhiteokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
+#fitted values for each model
+survey_years <- unique(dat.design$variables$SurveyYear)
+predictions <- data.frame(
+  SurveyYear = rep(survey_years, 3),
+  Category = factor(rep(c("avgProcessedokaj", "avgRedokaj", "avgWhiteokaj"), each = length(survey_years))),
+  PredictedOccasions = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                         predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                         predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"))
+)
+#colorblind friendly colors
+color_palette <- c("#E69F00", "#0072B2", "#D55E00") #order: processed (orange), white (blue), red (red)
+#correct order
+predictions$Category <- factor(predictions$Category, levels = c("avgProcessedokaj", "avgWhiteokaj", "avgRedokaj"))
+#names for xlab
+levels(predictions$Category) <- c("Processed", "White", "Red")
+#convert SurveyYear to numeric
+predictions$SurveyYear <- as.numeric(as.character(predictions$SurveyYear))
+#create plot
+plot2 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedOccasions, color = Category, group = Category)) +
+  geom_point(size = 1) +
+  geom_line() +
+  geom_smooth(method = "glm", se = FALSE, linetype = "dotted", aes(group = Category)) + #this adds the fitted line
+  scale_color_manual(values = color_palette) +
+  labs(x = "Survey Year", y = "No. meat-eating occasions/day", color = "Meat category") +
+  scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
+  theme_classic() +
+  theme(text = element_text(family = "Times New Roman", size = 12),
+        axis.text.x = element_text(angle = 45, hjust = 1)) +
+  guides(linetype = guide_legend(override.aes = list(color = "black")))
+print(plot2)
+
+#portion size
+m2 <- svyglm(gperokajProcessed ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m3 <- svyglm(gperokajRed ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m4 <- svyglm(gperokajWhite ~ SurveyYear, family=poisson(link = "log"), dat.design)
+#fitted values for each model
+survey_years <- unique(dat.design$variables$SurveyYear)
+predictions <- data.frame(
+  SurveyYear = rep(survey_years, 3),
+  Category = factor(rep(c("gperokajProcessed", "gperokajRed", "gperokajWhite"), each = length(survey_years))),
+  PredictedPortion = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                       predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                       predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"))
+)
+#colorblind friendly
+color_palette <- c("#0072B2", "#D55E00", "#E69F00") #order: white (blue), red (red), processed (orange)
+#correct order
+predictions$Category <- factor(predictions$Category, levels = c("gperokajWhite", "gperokajRed", "gperokajProcessed"))
+#names for xlab
+levels(predictions$Category) <- c("White", "Red", "Processed")
+#convert SurveyYear to numeric
+predictions$SurveyYear <- as.numeric(as.character(predictions$SurveyYear))
+#create plot
+plot3 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedPortion, color = Category, group = Category)) +
+  geom_point(size = 1) +
+  geom_line() +
+  geom_smooth(method = "glm", se = FALSE, linetype = "dotted", aes(group = Category)) + #this adds the fitted line
+  scale_color_manual(values = color_palette) +
+  labs(x = "Survey Year", y = "Portion size (g)/meat-eating occasion", color = "Meat category") +
+  scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
+  theme_classic() +
+  theme(text = element_text(family = "Times New Roman", size = 12),
+        axis.text.x = element_text(angle = 45, hjust = 1)) +
+  guides(linetype = guide_legend(override.aes = list(color = "black")))
+print(plot3)
+
+#combine all into 1 figure
+#Remove the legend from plot2 and plot3
+plot2 <- plot2 + theme(legend.position = "none")
+plot3 <- plot3 + theme(legend.position = "none")
+#extract the legend from plot1
+legend_grob <- cowplot::get_legend(plot1)
+#remove the legend from plot1
+plot1 <- plot1 + theme(legend.position = "none")
+#combine the plots and legend into a single plot
+top_row <- cowplot::plot_grid(plot1, plot2, nrow = 1)
+bottom_row <- cowplot::plot_grid(plot3, legend_grob, nrow = 1, rel_widths = c(1, 1))
+combined_plot <- cowplot::plot_grid(top_row, bottom_row, ncol = 1, rel_heights = c(1, 1))
+print(combined_plot)
+```
+
+
+\pagebreak
+# 
+\pagebreak
+# FIGURE 2
+## Decomposition analysis plot
+
+
+```{r, warning=FALSE}
+#create dataset (values pulled from decomposition analysis section of this code)
+meat_data <- data.frame(
+  Meat = factor(c("Total Meat", "Processed Meat", "Red Meat", "White Meat"),
+                levels = c("Total Meat", "Processed Meat", "Red Meat", "White Meat")),
+  Total_Delta = c(-79.94, -32.18, -64.61, 7.08),
+  Days_Delta = c(-29.61, -12.53, -29.41, 13.92),
+  Occasions_Delta = c(-4.62, 2.25, -4.18, 1.55),
+  Portion_Size_Delta = c(-45.71, -21.90, -31.02, -8.39)
+)
+meat_data_divided <- meat_data
+numeric_columns <- sapply(meat_data, is.numeric)
+#divide numeric columns by 4 (to represent daily intake)
+meat_data_divided[, numeric_columns] <- meat_data[, numeric_columns] / 4
+#rename back to original
+meat_data <- meat_data_divided
+print(meat_data)
+#transform
+melted_data <- reshape2::melt(meat_data, id.vars = "Meat")
+#make plot
+bar_plot <- ggplot(melted_data, aes(x = Meat, y = value, fill = variable)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.5) +
+  scale_fill_manual(values = c("Total_Delta" = "black", "Days_Delta" = "#CB181D", "Occasions_Delta" = "#FB6A4A", "Portion_Size_Delta" = "#FCBBA1"),
+                    labels = c("Total_Delta" = "Total change",
+                               "Days_Delta" = "Meat-eating days",
+                               "Occasions_Delta" = "Meat-eating occasions",
+                               "Portion_Size_Delta" = "Portion size of meat")) +
+  labs(x = "Meat sub-type", y = "Change in meat consumption (g/capita/day)", fill = "Meat reduction behaviours") +
+  theme_classic() +
+  theme(text = element_text(family = "Times New Roman", size = 12)) 
+#define the y-axis limits (didn't like the cuts it was giving me)
+y_limits <- c(-22, 5)
+#update plot with modified y-axis limits/breaks and a dashed line at y=0
+bar_plot <- bar_plot +
+  scale_y_continuous(limits = y_limits, expand = c(0, 0), 
+                     breaks = seq(-20, 5, by = 5)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  geom_text(aes(label = sprintf("%.1f", value), y = value, group = variable, vjust = ifelse(value >= 0, -0.5, 1.5)), 
+            position = position_dodge(width = 0.5), size = 2.5)
+print(bar_plot)
+```
+
+
+
+\pagebreak
+# 
+\pagebreak
+# FIGURE 3
+## Meat days as a proportion of the population, by year
+
+
+```{r, warning=FALSE}
+custom_x_labels <- function(x) {
+  labels <- ifelse(x == 1, "2008/09", sprintf("'%02d/'%02d", x + 7, (x + 7) %% 100 + 1))
+  return(labels)
+}
+
+#total meat days
+#set the weighting structure a srvyr object with the survey design
+dat_svy <- as_survey(survey_design)
+#create categorical variable for each level of MeatDays by SurveyYear
+meat_days_prop <- dat_svy %>% 
+  group_by(SurveyYear) %>% 
+  summarize(prop_0 = survey_mean(MeatDays == 0),
+            prop_1 = survey_mean(MeatDays == 1),
+            prop_2 = survey_mean(MeatDays == 2),
+            prop_3 = survey_mean(MeatDays == 3),
+            prop_4 = survey_mean(MeatDays == 4))
+meat_days_prop
+#subset the columns that end in "_se"
+se_cols <- grep("_se$", names(meat_days_prop))
+#Remove the columns that end in "_se"
+meat_days_prop_no_se <- meat_days_prop[, -se_cols]
+#transform  data from wide to long format
+meat_days_prop_long <- pivot_longer(meat_days_prop_no_se, cols = -SurveyYear, names_to = "MeatDays", values_to = "proportion")
+#create stacked bar plot
+plot1 <- ggplot(meat_days_prop_long, aes(x = SurveyYear, y = proportion, fill = factor(str_remove(MeatDays, "prop_"), levels = c("4", "3", "2", "1", "0")))) + 
+  geom_col() +
+  scale_fill_brewer(palette = "Reds", direction = -1) +
+  labs(x = "Survey Year", y = "Proportion of participants", fill = "Meat Days") +
+  scale_x_continuous(breaks = meat_days_prop$SurveyYear, labels = custom_x_labels) +
+  geom_text(aes(label = paste0(round(proportion*100),"%")), 
+            position = position_stack(vjust = 0.5)) +
+  theme_classic() +
+  theme(text = element_text(family = "Times New Roman", size = 12)) +
+  scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.25))
+plot1
+
+#processed meat days
+#create categorical variable for each level of Processed by SurveyYear
+Processed_days_prop <- dat_svy %>% 
+  group_by(SurveyYear) %>% 
+  summarize(prop_0 = survey_mean(ProcessedDays == 0),
+            prop_1 = survey_mean(ProcessedDays == 1),
+            prop_2 = survey_mean(ProcessedDays == 2),
+            prop_3 = survey_mean(ProcessedDays == 3),
+            prop_4 = survey_mean(ProcessedDays == 4))
+Processed_days_prop
+#subset the columns that end in "_se"
+se_cols <- grep("_se$", names(Processed_days_prop))
+#remove the columns that end in "_se"
+Processed_days_prop_no_se <- Processed_days_prop[, -se_cols]
+#transform data from wide to long format
+Processed_days_prop_long <- pivot_longer(Processed_days_prop_no_se, cols = -SurveyYear, names_to = "ProcessedDays", values_to = "proportion")
+#stacked bar plot
+plot2 <- ggplot(Processed_days_prop_long, aes(x = SurveyYear, y = proportion, fill = factor(str_remove(ProcessedDays, "prop_"), levels = c("4", "3", "2", "1", "0")))) + 
+  geom_col() +
+  scale_fill_brewer(palette = "Reds", direction = -1) +
+  labs(x = "Survey Year", y = "Proportion of participants", fill = "Processed Days") +
+  scale_x_continuous(breaks = Processed_days_prop$SurveyYear, labels = custom_x_labels) +
+  geom_text(aes(label = paste0(round(proportion*100),"%")), 
+            position = position_stack(vjust = 0.5)) +
+  theme_classic() +
+  theme(text = element_text(family = "Times New Roman", size = 12)) +
+  scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.25))
+plot2
+
+#red meat days
+#create categorical variable for each level of RedDays by SurveyYear
+Red_days_prop <- dat_svy %>% 
+  group_by(SurveyYear) %>% 
+  summarize(prop_0 = survey_mean(RedDays == 0),
+            prop_1 = survey_mean(RedDays == 1),
+            prop_2 = survey_mean(RedDays == 2),
+            prop_3 = survey_mean(RedDays == 3),
+            prop_4 = survey_mean(RedDays == 4))
+Red_days_prop
+#subset the columns that end in "_se"
+se_cols <- grep("_se$", names(Red_days_prop))
+#remove the columns that end in "_se"
+Red_days_prop_no_se <- Red_days_prop[, -se_cols]
+#transform the data from wide to long format
+Red_days_prop_long <- pivot_longer(Red_days_prop_no_se, cols = -SurveyYear, names_to = "RedDays", values_to = "proportion")
+#stacked bar plot
+plot3 <- ggplot(Red_days_prop_long, aes(x = SurveyYear, y = proportion, fill = factor(str_remove(RedDays, "prop_"), levels = c("4", "3", "2", "1", "0")))) +
+  geom_col() +
+  scale_fill_brewer(palette = "Reds", direction = -1) +
+  labs(x = "Survey Year", y = "Proportion of participants", fill = "Red Days") +
+  scale_x_continuous(breaks = Red_days_prop$SurveyYear, labels = custom_x_labels) +
+  geom_text(aes(label = paste0(round(proportion*100),"%")), 
+            position = position_stack(vjust = 0.5)) +
+  theme_classic() +
+  theme(text = element_text(family = "Times New Roman", size = 12)) +
+  scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.25))
+plot3
+
+#white meat days
+#create categorical variable for each level of WhiteDays by SurveyYear
+white_days_prop <- dat_svy %>% 
+  group_by(SurveyYear) %>% 
+  summarize(prop_0 = survey_mean(WhiteDays == 0),
+            prop_1 = survey_mean(WhiteDays == 1),
+            prop_2 = survey_mean(WhiteDays == 2),
+            prop_3 = survey_mean(WhiteDays == 3),
+            prop_4 = survey_mean(WhiteDays == 4))
+white_days_prop
+#subset the columns that end in "_se"
+se_cols <- grep("_se$", names(white_days_prop))
+#remove the columns that end in "_se"
+white_days_prop_no_se <- white_days_prop[, -se_cols]
+#transform the data from wide to long format
+white_days_prop_long <- pivot_longer(white_days_prop_no_se, cols = -SurveyYear, names_to = "WhiteDays", values_to = "proportion")
+#stacked bar plot
+plot4 <- ggplot(white_days_prop_long, aes(x = SurveyYear, y = proportion, fill = factor(str_remove(WhiteDays, "prop_"), levels = c("4", "3", "2", "1", "0")))) +
+  geom_col() +
+  scale_fill_brewer(palette = "Reds", direction = -1) +
+  labs(x = "Survey Year", y = "Proportion of participants", fill = "White Days") +
+  scale_x_continuous(breaks = white_days_prop$SurveyYear, labels = custom_x_labels) +
+  geom_text(aes(label = paste0(round(proportion*100),"%")), 
+            position = position_stack(vjust = 0.5)) +
+  theme_classic() +
+  theme(text = element_text(family = "Times New Roman", size = 12)) +
+  scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.25))
+plot4
+
+#plot titles
+plot1 <- plot1 + ggtitle("Total meat") + theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+plot2 <- plot2 + ggtitle("Processed meat") + theme(plot.title = element_text(hjust = 0.5, face = "bold"), legend.position = "none")
+plot3 <- plot3 + ggtitle("Red meat") + theme(plot.title = element_text(hjust = 0.5, face = "bold"), legend.position = "none")
+plot4 <- plot4 + ggtitle("White meat") + theme(plot.title = element_text(hjust = 0.5, face = "bold"), legend.position = "none")
+#remove the x-axis label from plot1 and plot2
+plot1 <- plot1 + xlab(NULL)
+plot2 <- plot2 + xlab(NULL)
+#remove the y-axis label from plot2 and plot4
+plot2 <- plot2 + ylab(NULL)
+plot4 <- plot4 + ylab(NULL)
+#take legend from plot1
+plot1_legend <- cowplot::get_legend(plot1)
+#remove the legend from the original plot1
+plot1 <- plot1 + theme(legend.position = "none")
+#combine the plots into a single 4-pane plot without the legend (I'll add it later)
+combined_plot <- grid.arrange(plot1, plot2, plot3, plot4, ncol = 2, nrow = 2)
+#add the legend to the right of the combined plot
+combined_plot <- grid.arrange(combined_plot, plot1_legend, ncol = 2, widths = c(8, 1))
+print(combined_plot)
+```
+
+
+
+\pagebreak
+# 
+\pagebreak
+# APPENDICES
+
+\pagebreak
+# 
+\pagebreak
+# SI TABLE 1
+## Analysis by standard meal time (SMT) - breakfast, lunch, dinner
+
+
+```{r, warning=FALSE}
+#set survey year to factor for regression analysis
+dat$SurveyYear <- as.factor(dat$SurveyYear)
+dat$fpc <- 15332
+dat.design <-
+  svydesign(
+    id = ~area,
+    strata = ~astrata5,
+    data = dat,
+    weights = ~wti,
+    fpc = ~fpc
+  )
+
+#create summary function for linear regression results
+lm_summary <- function(response_var, design) {
+  #define the model formula dynamically
+  model_formula <- as.formula(paste(response_var, "~ SurveyYear"))
+  
+  #fit the model
+  model <- svyglm(model_formula, design = design)
+  
+  #calculate the sum between the intercept and SurveyYearX coefficients
+  diff <- coef(model)["(Intercept)"] + coef(model)[-1]
+  
+  #calculate the confidence intervals
+  conf_int <- confint(model)
+  
+  #calculate the confidence intervals for the differences
+  diff_conf_int <- conf_int["(Intercept)",] + conf_int[-1,]
+  
+  #create a new "summary" object
+  summary_obj <- summary(model)
+  
+  #calculate the t-values and p-values
+  t_values <- coef(model) / summary_obj$coefficients[, "Std. Error"]
+  p_values <- 2 * pt(-abs(t_values), df.residual(model))
+  
+  #replace the coefficients and confidence intervals with the calculated values
+  summary_obj$coefficients <- rbind(c(coef(model)["(Intercept)"], summary_obj$coefficients[1, "Std. Error"], conf_int[1,], p_values[1]),
+                                    cbind(diff,
+                                          summary_obj$coefficients[-1, "Std. Error"],
+                                          diff_conf_int,
+                                          p_values[-1]))
+  
+  #update column names
+  colnames(summary_obj$coefficients) <- c("Coef", "Std. Error", "2.5 %", "97.5 %", "Pr(>|t|)")
+  
+  #include the significance stars
+  signif.stars <- options("show.signif.stars")
+  if (is.logical(signif.stars) && signif.stars) {
+    summary_obj$coefficients <- cbind(summary_obj$coefficients, 
+                                      summary_obj$coefficients[, "Pr(>|t|)"])
+    colnames(summary_obj$coefficients)[ncol(summary_obj$coefficients)] <- " "
+    summary_obj$coefficients[, " "] <- symnum(summary_obj$coefficients[, "Pr(>|t|)"], 
+                                              corr = FALSE, na = FALSE,
+                                              cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
+                                              symbols = c("***", "**", "*", ".", " "))
+  }
+  
+  # ADD A LITTLE 'difference of years 1 to 11 + 95%CI' ROW AT THE BOTTOM OF THE OUTPUT
+  #correct the name for Intercept term [it's a wee bit messed up]
+  rownames(summary_obj$coefficients)[rownames(summary_obj$coefficients) == ""] <- "Intercept"
+  
+  #calculate the difference of the intercept + SurveyYear11 coefficients
+  diff_coefs <- summary_obj$coefficients["Intercept", "Coef"] - summary_obj$coefficients["SurveyYear11", "Coef"]
+  
+  #calculate the standard error of the difference
+  se_diff <- sqrt(sum(summary_obj$coefficients[c("Intercept", "SurveyYear11"), "Std. Error"]^2))
+  
+  #calculate the confidence interval for the difference
+  ci_diff <- c(diff_coefs - 1.96 * se_diff, diff_coefs + 1.96 * se_diff)
+  
+  #add these values to the summary at the bottom
+  summary_obj$coefficients <- rbind(summary_obj$coefficients, 
+                                    c(diff_coefs, se_diff, ci_diff[1], ci_diff[2], NA))
+  rownames(summary_obj$coefficients)[nrow(summary_obj$coefficients)] <- "Diff"
+  
+  #round the coefficients and the confidence intervals to 2 decimal places
+  summary_obj$coefficients <- round(summary_obj$coefficients, 2)
+  
+  return(summary_obj)
+}
+
+
+#BREAKFAST
+#overall n values (n of participants who ate breakfast)
+sum(complete.cases(dat.design$variables$BsumMeatg[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$BsumMeatg[dat.design$variables$SurveyYear == 11])) #n values year 11
+
+##g per occasion##
+lm_summary(response_var = "BsumMeatg", design = dat.design)
+lm_summary(response_var = "BsumProcessedg", design = dat.design)
+lm_summary(response_var = "BsumRedg", design = dat.design)
+lm_summary(response_var = "BsumWhiteg", design = dat.design)
+lm_summary(response_var = "BokajGrams", design = dat.design)
+
+#LUNCH
+#overall n values (n of participants who ate lunch)
+sum(complete.cases(dat.design$variables$LsumMeatg[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$LsumMeatg[dat.design$variables$SurveyYear == 11])) #n values year 11
+
+##g per occasion##
+lm_summary(response_var = "LsumMeatg", design = dat.design)
+lm_summary(response_var = "LsumProcessedg", design = dat.design)
+lm_summary(response_var = "LsumRedg", design = dat.design)
+lm_summary(response_var = "LsumWhiteg", design = dat.design)
+lm_summary(response_var = "LokajGrams", design = dat.design)
+
+#DINNER
+#overall n values (n of participants who ate dinner)
+sum(complete.cases(dat.design$variables$DsumMeatg[dat.design$variables$SurveyYear == 1])) #n values year 1
+sum(complete.cases(dat.design$variables$DsumMeatg[dat.design$variables$SurveyYear == 11])) #n values year 11
+
+##g per occasion##
+lm_summary(response_var = "DsumMeatg", design = dat.design)
+lm_summary(response_var = "DsumProcessedg", design = dat.design)
+lm_summary(response_var = "DsumRedg", design = dat.design)
+lm_summary(response_var = "DsumWhiteg", design = dat.design)
+lm_summary(response_var = "DokajGrams", design = dat.design)
+
+
+#set survey year to numeric for p-values
+dat$SurveyYear <- as.numeric(dat$SurveyYear)
+dat$fpc <- 15332
+dat.design <-
+  svydesign(
+    id = ~area,
+    strata = ~astrata5,
+    data = dat,
+    weights = ~wti,
+    fpc = ~fpc
+  )
+
+#BREAKFAST
+#p values
+summary(svyglm(BsumMeatg ~ SurveyYear, dat.design))
+summary(svyglm(BsumProcessedg ~ SurveyYear, dat.design))
+summary(svyglm(BsumRedg ~ SurveyYear, dat.design))
+summary(svyglm(BsumWhiteg ~ SurveyYear, dat.design))
+summary(svyglm(BokajGrams ~ SurveyYear, dat.design))
+
+
+#LUNCH
+#p values
+summary(svyglm(LsumMeatg ~ SurveyYear, dat.design))
+summary(svyglm(LsumProcessedg ~ SurveyYear, dat.design))
+summary(svyglm(LsumRedg ~ SurveyYear, dat.design))
+summary(svyglm(LsumWhiteg ~ SurveyYear, dat.design))
+summary(svyglm(LokajGrams ~ SurveyYear, dat.design))
+
+
+#DINNER
+#p values
+summary(svyglm(DsumMeatg ~ SurveyYear, dat.design))
+summary(svyglm(DsumProcessedg ~ SurveyYear, dat.design))
+summary(svyglm(DsumRedg ~ SurveyYear, dat.design))
+summary(svyglm(DsumWhiteg ~ SurveyYear, dat.design))
+summary(svyglm(DokajGrams ~ SurveyYear, dat.design))
+```
+
+
+\pagebreak
+# 
+\pagebreak
+# SI TABLE 2a
+## change in meat consumption behaviours by sex
+
+
+```{r, warning=FALSE}
+#set survey year as factor for regression analysis
+dat$SurveyYear <- as.factor(dat$SurveyYear)
+dat$fpc <- 15332
+dat.design <-
+  svydesign(
+    id = ~area,
+    strata = ~astrata5,
+    data = dat,
+    weights = ~wti,
+    fpc = ~fpc
+  )
+
+#create summary functions for exponentiation and glm regression analyses
+exp_interaction_CI_sex <- function(response_var, design) {
+  model_formula <- as.formula(paste(response_var, "~ SurveyYear + Sex + SurveyYear * Sex"))
+  model <- svyglm(model_formula, family = poisson(link = "log"), design = design)
+  model_summary <- summary(model)
+  betas <- coef(model)
+  se <- coef(model_summary)[, "Std. Error"]
+  #combinations of coefficients
+  b_combinations <- c(
+    betas["(Intercept)"],
+    betas["(Intercept)"] + betas["SurveyYear11"],
+    betas["(Intercept)"] + betas["SexF"],
+    betas["(Intercept)"] + betas["SexF"] + betas["SurveyYear11"] + betas["SurveyYear11:SexF"]
+  )
+  #standard errors for combinations
+  se_combinations <- c(
+    se["(Intercept)"],
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
+    sqrt(se["(Intercept)"]^2 + se["SexF"]^2),
+    sqrt(se["(Intercept)"]^2 + se["SexF"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:SexF"]^2)
+  )
+  #exponentiated coefficients and CI for combinations
+  exp_coef <- round(exp(b_combinations), 2)
+  lower_bound <- round(exp(b_combinations - 1.96 * se_combinations), 2)
+  upper_bound <- round(exp(b_combinations + 1.96 * se_combinations), 2)
+  
+  #difference between groups
+  diff_coefs <- c(exp_coef[1] - exp_coef[2], exp_coef[3] - exp_coef[4])
+  
+  #standard error of the difference
+  se_diff <- c(sqrt(sum(se_combinations[1:2]^2)), sqrt(sum(se_combinations[3:4]^2)))
+  
+  #confidence interval for the difference
+  ci_diff_lower <- c(diff_coefs[1] - 1.96 * se_diff[1], diff_coefs[2] - 1.96 * se_diff[2])
+  ci_diff_upper <- c(diff_coefs[1] + 1.96 * se_diff[1], diff_coefs[2] + 1.96 * se_diff[2])
+  
+  #data frame to present the results
+  result_table <- rbind(
+    data.frame(
+      Group = c("M_Y1", "M_Y11", "F_Y1", "F_Y11"),
+      Beta = exp_coef,
+      Lower = lower_bound,
+      Upper = upper_bound,
+      stringsAsFactors = FALSE
+    ),
+    data.frame(
+      Group = c("Diff_M", "Diff_F"),
+      Beta = round(diff_coefs, 2),
+      Lower = round(ci_diff_lower, 2),
+      Upper = round(ci_diff_upper, 2),
+      stringsAsFactors = FALSE
+    )
+  )
+  return(result_table)
+}
+glm_interaction_CI_sex <- function(response_var, design) {
+  model_formula <- as.formula(paste(response_var, "~ SurveyYear + Sex + SurveyYear * Sex"))
+  model <- svyglm(model_formula, design = design)
+  model_summary <- summary(model)
+  betas <- coef(model)
+  se <- coef(model_summary)[, "Std. Error"]
+  #combinations of coefficients
+  b_combinations <- c(
+    betas["(Intercept)"],
+    betas["(Intercept)"] + betas["SurveyYear11"],
+    betas["(Intercept)"] + betas["SexF"],
+    betas["(Intercept)"] + betas["SexF"] + betas["SurveyYear11"] + betas["SurveyYear11:SexF"]
+  )
+  #standard errors for combinations
+  se_combinations <- c(
+    se["(Intercept)"],
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
+    sqrt(se["(Intercept)"]^2 + se["SexF"]^2),
+    sqrt(se["(Intercept)"]^2 + se["SexF"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:SexF"]^2)
+  )
+  #CI for combinations
+  lower_bound <- round(b_combinations - 1.96 * se_combinations, 2)
+  upper_bound <- round(b_combinations + 1.96 * se_combinations, 2)
+  
+  #difference between groups
+  diff_coefs <- c(b_combinations[1] - b_combinations[2], b_combinations[3] - b_combinations[4])
+  
+  #standard error of the difference
+  se_diff <- c(sqrt(sum(se_combinations[1:2]^2)), sqrt(sum(se_combinations[3:4]^2)))
+  
+  #confidence interval for the difference
+  ci_diff_lower <- c(diff_coefs[1] - 1.96 * se_diff[1], diff_coefs[2] - 1.96 * se_diff[2])
+  ci_diff_upper <- c(diff_coefs[1] + 1.96 * se_diff[1], diff_coefs[2] + 1.96 * se_diff[2])
+  
+  #data frame to present the results
+  result_table <- rbind(
+    data.frame(
+      Group = c("M_Y1", "M_Y11", "F_Y1", "F_Y11"),
+      Beta = b_combinations,
+      Lower = lower_bound,
+      Upper = upper_bound,
+      stringsAsFactors = FALSE
+    ),
+    data.frame(
+      Group = c("Diff_M", "Diff_F"),
+      Beta = round(diff_coefs, 2),
+      Lower = round(ci_diff_lower, 2),
+      Upper = round(ci_diff_upper, 2),
+      stringsAsFactors = FALSE
+    )
+  )
+  return(result_table)
+}
+
+#days
+exp_interaction_CI_sex(response_var = "MeatDays", design = dat.design)
+exp_interaction_CI_sex(response_var = "ProcessedDays", design = dat.design)
+exp_interaction_CI_sex(response_var = "RedDays", design = dat.design)
+exp_interaction_CI_sex(response_var = "WhiteDays", design = dat.design)
+exp_interaction_CI_sex(response_var = "NoMeatDays", design = dat.design)
+#occasions
+exp_interaction_CI_sex(response_var = "avgMeatokaj", design = dat.design)
+exp_interaction_CI_sex(response_var = "avgProcessedokaj", design = dat.design)
+exp_interaction_CI_sex(response_var = "avgRedokaj", design = dat.design)
+exp_interaction_CI_sex(response_var = "avgWhiteokaj", design = dat.design)
+#portion size
+glm_interaction_CI_sex(response_var = "gperokajMeat", design = dat.design)
+glm_interaction_CI_sex(response_var = "gperokajProcessed", design = dat.design)
+glm_interaction_CI_sex(response_var = "gperokajRed", design = dat.design)
+glm_interaction_CI_sex(response_var = "gperokajWhite", design = dat.design)
+
+#set survey year to numeric for p-values
+dat$SurveyYear <- as.numeric(dat$SurveyYear)
+dat$fpc <- 15332
+dat.design <-
+  svydesign(
+    id = ~area,
+    strata = ~astrata5,
+    data = dat,
+    weights = ~wti,
+    fpc = ~fpc
+  )
+
+#p values
+summary(svyglm(MeatDays ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
+summary(svyglm(ProcessedDays ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
+summary(svyglm(RedDays ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
+summary(svyglm(WhiteDays ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
+summary(svyglm(NoMeatDays ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
+
+summary(svyglm(avgMeatokaj ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
+summary(svyglm(avgProcessedokaj ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
+summary(svyglm(avgRedokaj ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
+summary(svyglm(avgWhiteokaj ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
+
+summary(svyglm(gperokajMeat ~ SurveyYear + Sex + SurveyYear * Sex, dat.design))
+summary(svyglm(gperokajProcessed ~ SurveyYear + Sex + SurveyYear * Sex, dat.design))
+summary(svyglm(gperokajRed ~ SurveyYear + Sex + SurveyYear * Sex, dat.design))
+summary(svyglm(gperokajWhite ~ SurveyYear + Sex + SurveyYear * Sex, dat.design))
+```
+
+
+\pagebreak
+# 
+\pagebreak
+# SI TABLE 2b
+## change in meat consumption behaviours by age group
+
+
+```{r, warning=FALSE}
+#set survey year as factor for regression analysis
+dat$SurveyYear <- as.factor(dat$SurveyYear)
+dat$fpc <- 15332
+dat.design <-
+  svydesign(
+    id = ~area,
+    strata = ~astrata5,
+    data = dat,
+    weights = ~wti,
+    fpc = ~fpc
+  )
+
+#create summary functions for exponentiation and glm regression analyses
+exp_interaction_CI_age <- function(response_var, design) {
+  model_formula <- as.formula(paste(response_var, "~ SurveyYear + AgeG + SurveyYear * AgeG"))
+  model <- svyglm(model_formula, family = poisson(link = "log"), design = design)
+  model_summary <- summary(model)
+  betas <- coef(model)
+  se <- coef(model_summary)[, "Std. Error"]
+  
+  # combinations of coefficients
+  b_combinations <- c(
+    betas["(Intercept)"],
+    betas["(Intercept)"] + betas["SurveyYear11"],
+    betas["(Intercept)"] + betas["AgeG1"],
+    betas["(Intercept)"] + betas["AgeG1"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG1"],
+    betas["(Intercept)"] + betas["AgeG2"],
+    betas["(Intercept)"] + betas["AgeG2"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG2"],
+    betas["(Intercept)"] + betas["AgeG4"],
+    betas["(Intercept)"] + betas["AgeG4"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG4"],
+    betas["(Intercept)"] + betas["AgeG5"],
+    betas["(Intercept)"] + betas["AgeG5"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG5"]
+  )
+  
+  # exponentiated coefficients
+  exp_coef <- round(exp(b_combinations), 2)
+  
+  # standard errors for combinations
+  se_combinations <- c(
+    se["(Intercept)"],
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
+    se["AgeG1"],
+    sqrt(se["AgeG1"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG1"]^2),
+    se["AgeG2"],
+    sqrt(se["AgeG2"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG2"]^2),
+    se["AgeG4"],
+    sqrt(se["AgeG4"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG4"]^2),
+    se["AgeG5"],
+    sqrt(se["AgeG5"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG5"]^2)
+  )
+  
+  # CI for combinations
+  lower_bound <- round(exp_coef - 1.96 * se_combinations, 2)
+  upper_bound <- round(exp_coef + 1.96 * se_combinations, 2)
+  
+  # differences of exponentiated coefficients for each pair of groups (Y1 - Y11)
+  diff_coefs <- exp_coef[seq(1, length(exp_coef), 2)] - exp_coef[seq(2, length(exp_coef), 2)]
+  
+  # standard errors for the differences
+  se_diff <- sqrt(se_combinations[seq(1, length(se_combinations), 2)]^2 + se_combinations[seq(2, length(se_combinations), 2)]^2)
+  
+  # CI for the differences
+  diff_lower_bound <- round(diff_coefs - 1.96 * se_diff, 2)
+  diff_upper_bound <- round(diff_coefs + 1.96 * se_diff, 2)
+  
+  # data frame to present the results
+  result_table <- rbind(
+    data.frame(
+      Group = c("18-40_Y1", "18-40_Y11", "<10_Y1", "<10_Y11", "11-17_Y1", "11-17_Y11", "41-59_Y1", "41-59_Y11", ">=60_Y1", ">=60_Y11"),
+      Beta = exp_coef,
+      Lower = lower_bound,
+      Upper = upper_bound
+    ),
+    data.frame(
+      Group = c("Diff_18-40", "Diff_<10", "Diff_11-17", "Diff_41-59", "Diff_>=60"),
+      Beta = round(diff_coefs, 2),
+      Lower = round(diff_lower_bound, 2),
+      Upper = round(diff_upper_bound, 2)
+    )
+  )
+  return(result_table)
+}
+glm_interaction_CI_age <- function(response_var, design) {
+  model_formula <- as.formula(paste(response_var, "~ SurveyYear + AgeG + SurveyYear * AgeG"))
+  model <- svyglm(model_formula, design = design)
+  model_summary <- summary(model)
+  betas <- coef(model)
+  se <- coef(model_summary)[, "Std. Error"]
+  #combinations of coefficients
+  b_combinations <- c(
+    betas["(Intercept)"],
+    betas["(Intercept)"] + betas["SurveyYear11"],
+    betas["(Intercept)"] + betas["AgeG1"],
+    betas["(Intercept)"] + betas["AgeG1"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG1"],
+    betas["(Intercept)"] + betas["AgeG2"],
+    betas["(Intercept)"] + betas["AgeG2"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG2"],
+    betas["(Intercept)"] + betas["AgeG4"],
+    betas["(Intercept)"] + betas["AgeG4"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG4"],
+    betas["(Intercept)"] + betas["AgeG5"],
+    betas["(Intercept)"] + betas["AgeG5"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG5"]
+  )
+  #standard errors for combinations
+  se_combinations <- c(
+    se["(Intercept)"],
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
+    se["AgeG1"],
+    sqrt(se["AgeG1"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG1"]^2),
+    se["AgeG2"],
+    sqrt(se["AgeG2"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG2"]^2),
+    se["AgeG4"],
+    sqrt(se["AgeG4"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG4"]^2),
+    se["AgeG5"],
+    sqrt(se["AgeG5"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG5"]^2)
+  )
+  # CI for combinations
+  lower_bound <- round(b_combinations - 1.96 * se_combinations, 2)
+  upper_bound <- round(b_combinations + 1.96 * se_combinations, 2)
+  
+  #difference between groups
+  diff_coefs <- b_combinations[seq(1, length(b_combinations), 2)] - b_combinations[seq(2, length(b_combinations), 2)]
+  
+  #standard error of the difference
+  se_diff <- sqrt(se_combinations[seq(1, length(se_combinations), 2)]^2 + se_combinations[seq(2, length(se_combinations), 2)]^2)
+  
+  #confidence interval for the difference
+  ci_diff_lower <- diff_coefs - 1.96 * se_diff
+  ci_diff_upper <- diff_coefs + 1.96 * se_diff
+  
+  #data frame to present the results
+  result_table <- rbind(
+    data.frame(
+      Group = c("18-40_Y1", "18-40_Y11", "<10_Y1", "<10_Y11", "11-17_Y1", "11-17_Y11", "41-59_Y1", "41-59_Y11", ">=60_Y1", ">=60_Y11"),
+      Beta = b_combinations,
+      Lower = lower_bound,
+      Upper = upper_bound,
+      stringsAsFactors = FALSE
+    ),
+    data.frame(
+      Group = c("Diff_18-40", "Diff_<10", "Diff_11-17", "Diff_41-59", "Diff_>=60"),
+      Beta = round(diff_coefs, 2),
+      Lower = round(ci_diff_lower, 2),
+      Upper = round(ci_diff_upper, 2),
+      stringsAsFactors = FALSE
+    )
+  )
+  return(result_table)
+}
+
+#days
+exp_interaction_CI_age(response_var = "MeatDays", design = dat.design)
+exp_interaction_CI_age(response_var = "ProcessedDays", design = dat.design)
+exp_interaction_CI_age(response_var = "RedDays", design = dat.design)
+exp_interaction_CI_age(response_var = "WhiteDays", design = dat.design)
+exp_interaction_CI_age(response_var = "NoMeatDays", design = dat.design)
+#occasions
+exp_interaction_CI_age(response_var = "avgMeatokaj", design = dat.design)
+exp_interaction_CI_age(response_var = "avgProcessedokaj", design = dat.design)
+exp_interaction_CI_age(response_var = "avgRedokaj", design = dat.design)
+exp_interaction_CI_age(response_var = "avgWhiteokaj", design = dat.design)
+#portion size
+glm_interaction_CI_age(response_var = "gperokajMeat", design = dat.design)
+glm_interaction_CI_age(response_var = "gperokajProcessed", design = dat.design)
+glm_interaction_CI_age(response_var = "gperokajRed", design = dat.design)
+glm_interaction_CI_age(response_var = "gperokajWhite", design = dat.design)
+
+#set survey year to numeric for p-values
+dat$SurveyYear <- as.numeric(dat$SurveyYear)
+dat$fpc <- 15332
+dat.design <-
+  svydesign(
+    id = ~area,
+    strata = ~astrata5,
+    data = dat,
+    weights = ~wti,
+    fpc = ~fpc
+  )
+
+#p values
+summary(svyglm(MeatDays ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
+summary(svyglm(ProcessedDays ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
+summary(svyglm(RedDays ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
+summary(svyglm(WhiteDays ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
+summary(svyglm(NoMeatDays ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
+
+summary(svyglm(avgMeatokaj ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
+summary(svyglm(avgProcessedokaj ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
+summary(svyglm(avgRedokaj ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
+summary(svyglm(avgWhiteokaj ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
+
+summary(svyglm(gperokajMeat ~ SurveyYear + AgeG + SurveyYear * AgeG, dat.design))
+summary(svyglm(gperokajProcessed ~ SurveyYear + AgeG + SurveyYear * AgeG, dat.design))
+summary(svyglm(gperokajRed ~ SurveyYear + AgeG + SurveyYear * AgeG, dat.design))
+summary(svyglm(gperokajWhite ~ SurveyYear + AgeG + SurveyYear * AgeG, dat.design))
+```
+
+
+\pagebreak
+# 
+\pagebreak
+# SI TABLE 2c
+## change in meat consumption behaviours by equivalised household income
+
+
+```{r, warning=FALSE}
+#set survey year as factor for regression analysis
+dat$SurveyYear <- as.factor(dat$SurveyYear)
+dat$fpc <- 15332
+dat.design <-
+  svydesign(
+    id = ~area,
+    strata = ~astrata5,
+    data = dat,
+    weights = ~wti,
+    fpc = ~fpc
+  )
+
+#create summary functions for exponentiation and glm regression analyses
+exp_interaction_CI_eqv <- function(response_var, design) {
+  model_formula <- as.formula(paste(response_var, "~ SurveyYear + eqv + SurveyYear * eqv"))
+  model <- svyglm(model_formula, family = poisson(link = "log"), design = design)
+  model_summary <- summary(model)
+  betas <- coef(model)
+  se <- coef(model_summary)[, "Std. Error"]
+  
+  # combinations of coefficients
+  b_combinations <- c(
+    betas["(Intercept)"],
+    betas["(Intercept)"] + betas["eqv2"],
+    betas["(Intercept)"] + betas["eqv3"],
+    betas["(Intercept)"] + betas["SurveyYear11"],
+    betas["(Intercept)"] + betas["SurveyYear11"] + betas["eqv2"] + betas["SurveyYear11:eqv2"],
+    betas["(Intercept)"] + betas["SurveyYear11"] + betas["eqv3"] + betas["SurveyYear11:eqv3"]
+  )
+  
+  # exponentiated coefficients
+  exp_coef <- round(exp(b_combinations), 2)
+  
+  # standard errors for combinations
+  se_combinations <- c(
+    se["(Intercept)"],
+    sqrt(se["(Intercept)"]^2 + se["eqv2"]^2),
+    sqrt(se["(Intercept)"]^2 + se["eqv3"]^2),
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2 + se["eqv2"]^2 + se["SurveyYear11:eqv2"]^2),
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2 + se["eqv3"]^2 + se["SurveyYear11:eqv3"]^2)
+  )
+  
+  # CI for combinations
+  lower_bound <- round(exp_coef - 1.96 * se_combinations, 2)
+  upper_bound <- round(exp_coef + 1.96 * se_combinations, 2)
+  
+  # differences of exponentiated coefficients for each pair of groups (Y1 - Y11)
+  diff_coefs <- exp_coef[c(1, 2, 3)] - exp_coef[c(4, 5, 6)]
+  
+  # standard errors for the differences
+  se_diff <- sqrt(se_combinations[c(1, 2, 3)]^2 + se_combinations[c(4, 5, 6)]^2)
+  
+  # CI for the differences
+  diff_lower_bound <- round(diff_coefs - 1.96 * se_diff, 2)
+  diff_upper_bound <- round(diff_coefs + 1.96 * se_diff, 2)
+  
+  # data frame to present the results
+  result_table <- rbind(
+    data.frame(
+      Group = c("eqv1_Y1", "eqv2_Y1", "eqv3_Y1", "eqv1_Y11", "eqv2_Y11", "eqv3_Y11"),
+      Beta = exp_coef,
+      Lower = lower_bound,
+      Upper = upper_bound
+    ),
+    data.frame(
+      Group = c("Diff_eqv1", "Diff_eqv2", "Diff_eqv3"),
+      Beta = round(diff_coefs, 2),
+      Lower = round(diff_lower_bound, 2),
+      Upper = round(diff_upper_bound, 2)
+    )
+  )
+  return(result_table)
+}
+glm_interaction_CI_eqv <- function(response_var, design) {
+  model_formula <- as.formula(paste(response_var, "~ SurveyYear + eqv + SurveyYear * eqv"))
+  model <- svyglm(model_formula, design = design)
+  model_summary <- summary(model)
+  betas <- coef(model)
+  se <- coef(model_summary)[, "Std. Error"]
+  
+  # combinations of coefficients
+  b_combinations <- c(
+    betas["(Intercept)"],
+    betas["(Intercept)"] + betas["eqv2"],
+    betas["(Intercept)"] + betas["eqv3"],
+    betas["(Intercept)"] + betas["SurveyYear11"],
+    betas["(Intercept)"] + betas["SurveyYear11"] + betas["eqv2"] + betas["SurveyYear11:eqv2"],
+    betas["(Intercept)"] + betas["SurveyYear11"] + betas["eqv3"] + betas["SurveyYear11:eqv3"]
+  )
+  
+  # standard errors for combinations
+  se_combinations <- c(
+    se["(Intercept)"],
+    sqrt(se["(Intercept)"]^2 + se["eqv2"]^2),
+    sqrt(se["(Intercept)"]^2 + se["eqv3"]^2),
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2 + se["eqv2"]^2 + se["SurveyYear11:eqv2"]^2),
+    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2 + se["eqv3"]^2 + se["SurveyYear11:eqv3"]^2)
+  )
+  
+  # CI for combinations
+  lower_bound <- round(b_combinations - 1.96 * se_combinations, 2)
+  upper_bound <- round(b_combinations + 1.96 * se_combinations, 2)
+  
+  # differences of coefficients for each pair of groups (Y1 - Y11)
+  diff_coefs <- b_combinations[c(1, 2, 3)] - b_combinations[c(4, 5, 6)]
+  
+  # standard errors for the differences
+  se_diff <- sqrt(se_combinations[c(1, 2, 3)]^2 + se_combinations[c(4, 5, 6)]^2)
+  
+  # CI for the differences
+  diff_lower_bound <- round(diff_coefs - 1.96 * se_diff, 2)
+  diff_upper_bound <- round(diff_coefs + 1.96 * se_diff, 2)
+  
+  # data frame to present the results
+  result_table <- rbind(
+    data.frame(
+      Group = c("eqv1_Y1", "eqv2_Y1", "eqv3_Y1", "eqv1_Y11", "eqv2_Y11", "eqv3_Y11"),
+      Beta = b_combinations,
+      Lower = lower_bound,
+      Upper = upper_bound
+    ),
+    data.frame(
+      Group = c("Diff_eqv1", "Diff_eqv2", "Diff_eqv3"),
+      Beta = round(diff_coefs, 2),
+      Lower = round(diff_lower_bound, 2),
+      Upper = round(diff_upper_bound, 2)
+    )
+  )
+  
+  return(result_table)
+}
+
+#days
+exp_interaction_CI_eqv(response_var = "MeatDays", design = dat.design)
+exp_interaction_CI_eqv(response_var = "ProcessedDays", design = dat.design)
+exp_interaction_CI_eqv(response_var = "RedDays", design = dat.design)
+exp_interaction_CI_eqv(response_var = "WhiteDays", design = dat.design)
+exp_interaction_CI_eqv(response_var = "NoMeatDays", design = dat.design)
+#occasions
+exp_interaction_CI_eqv(response_var = "avgMeatokaj", design = dat.design)
+exp_interaction_CI_eqv(response_var = "avgProcessedokaj", design = dat.design)
+exp_interaction_CI_eqv(response_var = "avgRedokaj", design = dat.design)
+exp_interaction_CI_eqv(response_var = "avgWhiteokaj", design = dat.design)
+#portion size
+glm_interaction_CI_eqv(response_var = "gperokajMeat", design = dat.design)
+glm_interaction_CI_eqv(response_var = "gperokajProcessed", design = dat.design)
+glm_interaction_CI_eqv(response_var = "gperokajRed", design = dat.design)
+glm_interaction_CI_eqv(response_var = "gperokajWhite", design = dat.design)
+
+#set survey year to numeric for p-values
+dat$SurveyYear <- as.numeric(dat$SurveyYear)
+dat$fpc <- 15332
+dat.design <-
+  svydesign(
+    id = ~area,
+    strata = ~astrata5,
+    data = dat,
+    weights = ~wti,
+    fpc = ~fpc
+  )
+
+#p values
+summary(svyglm(MeatDays ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
+summary(svyglm(ProcessedDays ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
+summary(svyglm(RedDays ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
+summary(svyglm(WhiteDays ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
+summary(svyglm(NoMeatDays ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
+
+summary(svyglm(avgMeatokaj ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
+summary(svyglm(avgProcessedokaj ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
+summary(svyglm(avgRedokaj ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
+summary(svyglm(avgWhiteokaj ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
+
+summary(svyglm(gperokajMeat ~ SurveyYear + eqv + SurveyYear * eqv, dat.design))
+summary(svyglm(gperokajProcessed ~ SurveyYear + eqv + SurveyYear * eqv, dat.design))
+summary(svyglm(gperokajRed ~ SurveyYear + eqv + SurveyYear * eqv, dat.design))
+summary(svyglm(gperokajWhite ~ SurveyYear + eqv + SurveyYear * eqv, dat.design))
+```
+
+
+\pagebreak
+# 
+\pagebreak
+# SI TABLE 3
+## change in meat consumption behaviours (Table 2), all years reported
+### See **Table 2** section, all years are reported within those analyses.
+
+
+\pagebreak
+# 
+\pagebreak
+# SI TABLE 4
+## demographic characteristics (Table 1), all years reported
+
+
+```{r, warning=FALSE}
+#specify survey weighting structure for descriptive analysis
+survey_design <- dat %>%
+  as_survey_design(ids = area, # cluster ids
+                   weights = wti, # weight variable created above
+                   strata = astrata5 # sampling was stratified by district
+  )
+
+#YEAR-BY-YEAR DEMOGRAPHIC ANALYSIS
+
+# Creating a list of years
+years <- unique(dat$SurveyYear)
+
+# Define a function that runs your analyses on a survey design
+analyze_data <- function(year) {
+  
+  # Subset data for the year
+  dat_subset <- dat %>% filter(SurveyYear == year)
+  
+  # Define survey design for subset
+  survey_design <- dat_subset %>%
+    as_survey_design(ids = area, # cluster ids
+                     weights = wti, # weight variable created above
+                     strata = astrata5 # sampling was stratified by district
+    )
+  
+  # age groups
+  age <- table(dat_subset$AgeG)
+  age_pct <- survey_design %>%
+    group_by(AgeG) %>% 
+    summarise(pct = survey_mean(na.rm = TRUE))
+  
+  # sex
+  sex <- table(dat_subset$Sex)
+  sex_pct <- survey_design %>%
+    group_by(Sex) %>%
+    summarise(pct = survey_mean(na.rm = TRUE))
+  
+  # income tertiles
+  income <- table(dat_subset$eqv)
+  income_pct <- survey_design %>%
+    group_by(eqv) %>%
+    summarise(pct = survey_mean(na.rm = TRUE))
+  
+  # meat consumers
+  survey_design <- mutate(survey_design, meat_gt_0 = as.numeric(sumMeatg > 0))
+  meat <- table(survey_design$variables$meat_gt_0)
+  meat_pct <- survey_design %>%
+    group_by(meat_gt_0) %>%
+    summarise(pct = survey_mean(na.rm = TRUE))
+  
+  return(list(age = age, age_pct = age_pct,
+              sex = sex, sex_pct = sex_pct,
+              income = income, income_pct = income_pct,
+              meat = meat, meat_pct = meat_pct))
+}
+
+#apply function to each year of the data
+results <- map(years, ~analyze_data(.x))
+
+#names of the results list will be the years
+names(results) <- years
+
+# Loop through the years and print results
+for(year in names(results)) {
+  cat("\nResults for Survey Year:", year, "\n")
+  
+  cat("\nAge groups:\n")
+  print(results[[year]]$age)
+  cat("\nAge groups percentage:\n")
+  print(results[[year]]$age_pct)
+  
+  cat("\nSex:\n")
+  print(results[[year]]$sex)
+  cat("\nSex percentage:\n")
+  print(results[[year]]$sex_pct)
+  
+  cat("\nIncome tertiles:\n")
+  print(results[[year]]$income)
+  cat("\nIncome tertiles percentage:\n")
+  print(results[[year]]$income_pct)
+  
+  cat("\nMeat consumers:\n")
+  print(results[[year]]$meat)
+  cat("\nMeat consumers percentage:\n")
+  print(results[[year]]$meat_pct)
+}
+```
+
+

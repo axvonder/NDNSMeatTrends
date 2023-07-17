@@ -1300,7 +1300,7 @@ ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 1.pn
 
 ################FIGURE 2#########################
 #decomposition analysis plot
-#make data (values pulled from decomposition analysis section of this code)
+#create dataset (values pulled from decomposition analysis section of this code)
 meat_data <- data.frame(
   Meat = factor(c("Total Meat", "Processed Meat", "Red Meat", "White Meat"),
                 levels = c("Total Meat", "Processed Meat", "Red Meat", "White Meat")),
