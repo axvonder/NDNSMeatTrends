@@ -17,19 +17,8 @@ dat <- read.csv('omega.csv')
 
 #########################EDITS AND CREATIONS#######################
 
-#this loop will set all variables' values equal to NA if the participant has <4 diary days completed
-#this allows the participants' weighting to be included in the regression analysis
-
-#variables to exclude from modification
-excluded_vars <- c("wti", "area", "astrata5", "seriali", "SurveyYear", "Sex", "Country", "Age", "eqv", "DiaryDaysCompleted")
-
-#change values to NA
-for (var_name in names(dat)) {
-  if (!(var_name %in% excluded_vars)) {
-    dat[[var_name]][dat$DiaryDaysCompleted < 4] <- NA
-  }
-}
-check3days <- subset(dat, DiaryDaysCompleted == 3) #a widdle checky-poo
+#remove participants with only 3 diary days (removed n = 323; n = 15,332)
+dat <- dat[!(dat$DiaryDaysCompleted == 3),]
 
 #define age brackets; <10 = 1; 11-17 = 2; 18-40 = 3; 41-59 = 4; >= 60 = 5
 dat <- dat %>%
@@ -59,9 +48,14 @@ for (var in varnames) {
 }
 
 #set survey designs
-dat$SurveyYear <- as.numeric(dat$SurveyYear)
+#make survey year factor or numeric, depending on analyses intended to be completed
+#make sure to re-set the survey design after you've changed surveyyear's variable type
+dat$SurveyYear <- as.factor(dat$SurveyYear)#run for regression analyses
+dat$SurveyYear <- as.numeric(dat$SurveyYear)#run for plots and also for calculating p value trends across all years (not just y1 & y11)
+
+#RERUN SURVEY DESIGN IF YOU'VE CHANGE ANY VARIABLES TO/FROM FACTOR/NUMERIC
 #specify survey weighting structure for GLM
-dat$fpc <- 15655
+dat$fpc <- 15332
 dat.design <-
   svydesign(
     id = ~area,
@@ -70,6 +64,8 @@ dat.design <-
     weights = ~wti,
     fpc = ~fpc
   )
+
+summary(svyglm(MeatDays ~ SurveyYear + Sex + SurveyYear * Sex, family=poisson(link = "log"), design = dat.design))
 
 #####################TABLE 1 - DEMOGRAPHICS#######################
 
@@ -80,67 +76,242 @@ survey_design <- dat %>%
                    strata = astrata5 # sampling was stratified by district
   )
 
-# Function to obtain counts and percentages
-get_data <- function(variable, characteristic_name) {
-  counts <- table(dat[[variable]]) %>%
-    as.data.frame() %>%
-    rename(Group = Var1, `Survey Years 1–11` = Freq)
+#count age groups 
+#unweighted Ns
+table(dat$AgeG)
+#weighted%s
+survey_design %>%
+  group_by(AgeG) %>% 
+  summarise(pct = survey_mean())
+
+#sex
+#unweighted Ns
+table(dat$Sex)
+#weighted %s
+survey_design %>%
+  group_by(Sex) %>%
+  summarise(pct = survey_mean())
+
+#income tertiles
+#unweighted Ns
+table(dat$eqv)
+#missing
+15332-(4449+4457+4474)
+#percentages of income tertiles
+survey_design %>%
+  group_by(eqv) %>%
+  summarise(pct = survey_mean())
+
+
+
+
+# Create a function to obtain counts and percentages
+get_info <- function(variable) {
+  counts <- as.data.frame(table(dat[[variable]]))
+  colnames(counts) <- c("Group", "Survey Years 1–11")
   
   pcts <- survey_design %>%
     group_by_at(variable) %>%
     summarise(`Survey-weighted %` = round(survey_mean()*100, 1)) %>%
     rename(Group = !!variable)
   
-  full_data <- left_join(counts, pcts, by = "Group") %>%
-    mutate(Characteristic = characteristic_name)
-  
+  full_data <- left_join(counts, pcts, by = "Group")
   return(full_data)
 }
 
-# Function to add missing data for income
-add_missing_income <- function(df) {
-  df %>%
-    add_row(Group = "Missing",
-            `Survey Years 1–11` = 15655 - sum(df$`Survey Years 1–11`, na.rm = TRUE),
-            `Survey-weighted %` = 100 - sum(df$`Survey-weighted %`, na.rm = TRUE))
+# Get data for each variable
+age_data <- get_info("AgeG")
+sex_data <- get_info("Sex")
+income_data <- get_info("eqv")
+
+# Calculate missing data for income
+income_data <- income_data %>%
+  add_row(Group = "Missing", 
+          `Survey Years 1–11` = 15332 - sum(income_data$`Survey Years 1–11`, na.rm = TRUE), 
+          `Survey-weighted %` = 100 - sum(income_data$`Survey-weighted %`, na.rm = TRUE))
+
+# Combine the tables
+final_table <- bind_rows(
+  mutate(age_data, Characteristic = "Age group (years)"),
+  mutate(sex_data, Characteristic = "Sex"),
+  mutate(income_data, Characteristic = "Equivalised income")
+)
+
+final_table$`Survey-weighted %_se` <- NULL
+
+# Renaming age groups based on their number representation
+age_group_replacements <- c("1" = "≤10", "2" = "11–17", "3" = "18–40", "4" = "41–59", "5" = "≥60")
+final_table$Group[final_table$Characteristic == "Age group (years)"] <- age_group_replacements[final_table$Group[final_table$Characteristic == "Age group (years)"]]
+
+# Add separator rows for categories
+separator_rows <- tibble(
+  Characteristic = c("Age group (years)", "Sex", "Equivalised income"),
+  Group = NA_character_,
+  `Survey Years 1–11` = NA_real_,
+  `Survey-weighted %` = NA_real_
+)
+
+final_table <- final_table %>%
+  rbind(separator_rows) %>%
+  arrange(Characteristic, is.na(Group))
+
+# Merge Characteristic and Group columns
+final_table <- final_table %>%
+  mutate(Characteristic = ifelse(!is.na(Group), paste(Characteristic, "\n", Group, sep = ""), Characteristic))
+final_table$Group <- NULL
+final_table$Characteristic <- ifelse(!grepl("Age group|Sex|Equivalised income", final_table$Characteristic),
+                                     gsub(".*\n", "", final_table$Characteristic),
+                                     final_table$Characteristic)
+
+final_table <- final_table %>%
+  arrange(Characteristic, desc(`Survey Years 1–11`))
+
+
+# Styling the table with gt
+styled_table <- gt(final_table) %>% 
+  cols_label(
+    Characteristic = "Characteristic",
+    `Survey Years 1–11` = "Survey Years 1–11",
+    `Survey-weighted %` = "Survey-weighted %"
+  ) %>%
+  cols_align(align = "left", columns = c("Characteristic")) %>%
+  cols_align(align = "center", columns = c(`Survey Years 1–11`, `Survey-weighted %`)) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(rows = grepl("Age group|Sex|Equivalised income", final_table$Characteristic))
+  )
+
+styled_table
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Create a function to obtain counts and percentages
+get_info <- function(variable) {
+  counts <- as.data.frame(table(dat[[variable]]))
+  colnames(counts) <- c("Group", "Count")
+  
+  pcts <- survey_design %>%
+    group_by_at(variable) %>%
+    summarise(pct = survey_mean()) %>%
+    mutate(pct = round(pct*100, 1)) %>%
+    rename(Group = !!variable)
+  
+  full_data <- left_join(counts, pcts, by = "Group")
+  return(full_data)
 }
 
-# Combine and process tables
-final_table <- list(
-  get_data("AgeG", "Age group (years)"),
-  get_data("Sex", "Sex"),
-  add_missing_income(get_data("eqv", "Equivalised income"))
-) %>%
-  bind_rows() %>%
-  mutate(
-    Group = ifelse(!is.na(Group) & Characteristic == "Age group (years)",
-                   c("1" = "≤10", "2" = "11–17", "3" = "18–40", "4" = "41–59", "5" = "≥60")[Group],
-                   Group),
-    Group = ifelse(!is.na(Group) & Characteristic == "Equivalised income",
-                   c("1" = "Lowest tertile", "2" = "Middle tertile", "3" = "Highest tertile")[Group],
-                   Group),
-    Group = ifelse(!is.na(Group) & Characteristic == "Sex",
-                   c("M" = "Male", "F" = "Female")[Group],
-                   Group)
-  ) %>%
-  arrange(
-    Characteristic,
-    case_when(
-      Characteristic == "Age group (years)" ~ as.integer(factor(Group, levels = c("≤10", "11–17", "18–40", "41–59", "≥60"))),
-      Characteristic == "Equivalised income" ~ as.integer(factor(Group, levels = c("Lowest tertile", "Middle tertile", "Highest tertile"))),
-      TRUE ~ as.integer(`Survey Years 1–11`)
-    )
-  ) %>%
-  mutate(
-    Characteristic = ifelse(!is.na(Group) & !is.na(Characteristic), paste0(Group), Characteristic)
-  ) %>%
-  mutate(
-    Characteristic = replace(Characteristic, is.na(Characteristic), "Equivalised income missing")
-  ) %>%
-  select(Characteristic, `Survey Years 1–11`, `Survey-weighted %`)
 
-table1 <- final_table
-rm(check3days, final_table)
+# Get data for each variable
+age_data <- get_info("AgeG")
+sex_data <- get_info("Sex")
+income_data <- get_info("eqv")
+# Calculate missing
+income_data <- income_data %>%
+  add_row(Group = "Missing", Count = 15332 - sum(income_data$Count, na.rm = TRUE), pct = 100 - sum(income_data$pct, na.rm = TRUE))
+
+# Combine the tables
+final_table <- bind_rows(
+  age_data %>% mutate(Characteristic = "Age group (years)"),
+  sex_data %>% mutate(Characteristic = "Sex"),
+  income_data %>% mutate(Characteristic = "Equivalised income")
+)
+
+
+
+
+final_table <- bind_rows(
+  mutate(age_data, Characteristic = "Age group (years)"),
+  mutate(sex_data, Characteristic = "Sex"),
+  mutate(income_data, Characteristic = "Equivalised income")
+)
+
+final_table$`n = 15,332` <- final_table$Count
+final_table$`Survey-weighted %` <- final_table$pct
+# Drop the old columns
+final_table$Count <- NULL
+final_table$pct <- NULL
+final_table$pct_se <- NULL
+
+
+# Rearrange the columns
+final_table <- final_table[c("Characteristic", "Group", "n = 15,332", "Survey-weighted %")]
+
+# Renaming age groups based on their number representation
+final_table$Group[final_table$Characteristic == "Age group (years)" & final_table$Group == "1"] <- "≤10"
+final_table$Group[final_table$Characteristic == "Age group (years)" & final_table$Group == "2"] <- "11–17"
+final_table$Group[final_table$Characteristic == "Age group (years)" & final_table$Group == "3"] <- "18–40"
+final_table$Group[final_table$Characteristic == "Age group (years)" & final_table$Group == "4"] <- "41–59"
+final_table$Group[final_table$Characteristic == "Age group (years)" & final_table$Group == "5"] <- "≥60"
+
+
+# Add separator rows for categories
+separator_rows <- data.frame(
+  Characteristic = c("Age group (years)", "Sex", "Equivalised income"),
+  Group = NA,
+  `n = 15,332` = NA,
+  `Survey-weighted %` = NA
+)
+
+colnames(separator_rows) <- c("Characteristic", "Group", "n = 15,332", "Survey-weighted %")
+final_table <- final_table %>%
+  rbind(separator_rows) %>%
+  arrange(Characteristic, is.na(Group))
+
+# Styling the table with gt
+styled_table <- gt(final_table) %>% 
+  tab_header(title = "Survey Years 1–11") %>%
+  cols_label(
+    Characteristic = "Characteristic",
+    `n = 15,332` = "Survey Years 1–11",
+    `Survey-weighted %` = "Survey-weighted %"
+  ) %>%
+  fmt_missing(columns = everything(), missing_text = "") %>%
+  tab_options(
+    table.column.align = "left",
+    column.align = list(`n = 15,332` = "center", `Survey-weighted %` = "center")
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(rows = is.na(final_table$Group))
+  )
+
+styled_table
+
+
+
+print(final_table)
+
 
 
 
