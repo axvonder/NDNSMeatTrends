@@ -18,20 +18,11 @@ dat <- read.csv('omega.csv')
 
 #########################EDITS AND CREATIONS#######################
 
-#this loop will set all variables' values equal to NA if the participant has <4 diary days completed
-#this allows the participants' weighting to be included in the regression analysis
-
-#variables to exclude from modification
-excluded_vars <- c("wti", "area", "astrata5", "seriali", "SurveyYear", "Sex", "Country", "Age", "eqv", "DiaryDaysCompleted")
-
-#change values to NA
-for (var_name in names(dat)) {
-  if (!(var_name %in% excluded_vars)) {
-    dat[[var_name]][dat$DiaryDaysCompleted < 4] <- NA
-  }
-}
-check3days <- subset(dat, DiaryDaysCompleted == 3) #do a widdle checky-poo
-rm(check3days, excluded_vars, var_name)
+#set a participant's weight to 0 if the participant has <4 diary days completed
+#this allows the participant to be excluded from analysis while maintaining original weights
+dat$wti[dat$DiaryDaysCompleted < 4] <- 0
+check3days <- subset(dat, DiaryDaysCompleted == 3, select = "wti") #do a widdle checky-poo
+rm(check3days)
 
 #define age brackets; <10 = 1; 11-17 = 2; 18-40 = 3; 41-59 = 4; >= 60 = 5
 dat <- dat %>%
@@ -92,6 +83,7 @@ demographic <- function(dataset, group_var, results_df) {
   
   #unweighted counts
   unweighted_counts <- dataset %>%
+    filter(DiaryDaysCompleted == 4) %>% #exclude is fine here because it's not weighted
     group_by(!!sym(group_var)) %>%
     summarise(count = n()) %>%
     rename(characteristic = !!sym(group_var))
@@ -128,9 +120,9 @@ ordered_levels_sex <- c("Male", "Female")
 results_sex <- results_sex %>% arrange(match(characteristic, ordered_levels_sex))
 
 results_eqv$characteristic <- case_when(
-  results_eqv$characteristic == "1" ~ "Highest tertile",
+  results_eqv$characteristic == "1" ~ "Lowest tertile",
   results_eqv$characteristic == "2" ~ "Middle tertile",
-  results_eqv$characteristic == "3" ~ "Lowest tertile",
+  results_eqv$characteristic == "3" ~ "Highest tertile",
   is.na(results_eqv$characteristic) ~ "Missing",
   TRUE ~ results_eqv$characteristic #leaves other values unchanged (this was messing up before)
 )
@@ -202,9 +194,9 @@ ordered_levels_sex <- c("Male", "Female")
 results_sex <- results_sex %>% arrange(match(characteristic, ordered_levels_sex))
 
 results_eqv$characteristic <- case_when(
-  results_eqv$characteristic == "1" ~ "Highest tertile",
+  results_eqv$characteristic == "1" ~ "Lowest tertile",
   results_eqv$characteristic == "2" ~ "Middle tertile",
-  results_eqv$characteristic == "3" ~ "Lowest tertile",
+  results_eqv$characteristic == "3" ~ "Highest tertile",
   is.na(results_eqv$characteristic) ~ "Missing",
   TRUE ~ results_eqv$characteristic #leaves other values unchanged (this was messing up before)
 )
@@ -275,13 +267,6 @@ meaniebobeanies <- function(var_list, dataset) {
   
   return(results)
 }
-#list of variables to feed (add all variables desired for analysis here, then run)
-ListToFeed <- c("MeatDays", "avgMeatokaj", "gperokajMeat",
-                "ProcessedDays", "avgProcessedokaj", "gperokajProcessed",
-                "RedDays", "avgRedokaj", "gperokajRed",
-                "WhiteDays", "avgWhiteokaj", "gperokajWhite",
-                "NoMeatDays")
-final <- meaniebobeanies(ListToFeed, dat)
 #function to get P for trend across all years in Poisson model using existing dat.design
 ptrend <- function(variable, dat.design) {
   form_var <- as.formula(paste(variable, "~ SurveyYear"))
@@ -308,116 +293,43 @@ ptrend <- function(variable, dat.design) {
   
   return(p_value_str)
 }
-#create vector to store p-values
-pvec <- character()
-#loop through each variable in ListToFeed
-for (var in ListToFeed) {
-  #get the p trend for each variable & add it to the vec
-  pval <- ptrend(var, dat.design) #using dat.design to pull from survey weighted glm
-  pvec <- c(pvec, pval)
+run <- function(analysis) {
+  X <- meaniebobeanies(ListToFeed, dat)
+  #create vector to store p-values
+  pvec <- character()
+  #loop through each variable in ListToFeed
+  for (var in ListToFeed) {
+    #get the p trend for each variable & add it to the vec
+    pval <- ptrend(var, dat.design) #using dat.design to pull from survey weighted glm
+    pvec <- c(pvec, pval)
+  }
+  X$`P for trend` <- pvec
+  rownames(X) <- ListToFeed
+  X <- rownames_to_column(X, var = "Meat Type")
+  colnames(X) <- gsub("\\.", " ", colnames(X))
+  #create dataframe with name
+  assign(analysis, X, envir = globalenv())
 }
-#add ptrend column to dataset, change the rownames to the variables analyzed,
-final$`P for trend` <- pvec
-rownames(final) <- ListToFeed
-final <- rownames_to_column(final, var = "Meat Type")
-colnames(final) <- gsub("\\.", " ", colnames(final))
-sitable2 <- final
+#list of variables to feed (add all variables desired for analysis here, then run)
+ListToFeed <- c("MeatDays", "avgMeatokaj", "gperokajMeat",
+                "ProcessedDays", "avgProcessedokaj", "gperokajProcessed",
+                "RedDays", "avgRedokaj", "gperokajRed",
+                "WhiteDays", "avgWhiteokaj", "gperokajWhite",
+                "NoMeatDays")
+run("sitable2")
 table2 <- sitable2[, c("Meat Type", "Year 1", "Year 11", "P for trend")]
-rm(final, ListToFeed, p_for_trend, p_value, var, get_p_value_for_trend,
-   meanies, meaniebobeanies, pval, pvec, ptrend)
+rm(ListToFeed)
 
 #unweighted count of participants in each survey year (not including those who have <4 diary days)
 table(dat$SurveyYear[dat$DiaryDaysCompleted == 4])
 
 
-#########################SI TABLE 1 - STM ANALYSIS########################
-#BREAKFAST
-#overall n values (n of participants who ate breakfast)
-sum(complete.cases(dat.design$variables$BsumMeatg[dat.design$variables$SurveyYear == 1])) #n values year 1
-sum(complete.cases(dat.design$variables$BsumMeatg[dat.design$variables$SurveyYear == 11])) #n values year 11
+#########################SI TABLE 3 - STM ANALYSIS########################
 
-##g per occasion##
-lm_summary(response_var = "BsumMeatg", design = dat.design)
-lm_summary(response_var = "BsumProcessedg", design = dat.design)
-lm_summary(response_var = "BsumRedg", design = dat.design)
-lm_summary(response_var = "BsumWhiteg", design = dat.design)
-lm_summary(response_var = "BokajGrams", design = dat.design)
-
-#p values and counts (need counts for portion size as it'll differ by meat type)
-summary(svyglm(BsumMeatg ~ SurveyYear, dat.design))
-sum(complete.cases(dat.design$variables$BsumMeatg[dat.design$variables$SurveyYear == 1])) #n values year 1
-sum(complete.cases(dat.design$variables$BsumMeatg[dat.design$variables$SurveyYear == 11])) #n values year 11
-summary(svyglm(BsumProcessedg ~ SurveyYear, dat.design))
-sum(complete.cases(dat.design$variables$BsumProcessedg[dat.design$variables$SurveyYear == 1])) #n values year 1
-sum(complete.cases(dat.design$variables$BsumProcessedg[dat.design$variables$SurveyYear == 11])) #n values year 11
-summary(svyglm(BsumRedg ~ SurveyYear, dat.design))
-sum(complete.cases(dat.design$variables$BgperokajRed[dat.design$variables$SurveyYear == 1])) #n values year 1
-sum(complete.cases(dat.design$variables$BgperokajRed[dat.design$variables$SurveyYear == 11])) #n values year 11
-summary(svyglm(BsumWhiteg ~ SurveyYear, dat.design))
-sum(complete.cases(dat.design$variables$BgperokajWhite[dat.design$variables$SurveyYear == 1])) #n values year 1
-sum(complete.cases(dat.design$variables$BgperokajWhite[dat.design$variables$SurveyYear == 11])) #n values year 11
-summary(svyglm(BokajGrams ~ SurveyYear, dat.design))
-sum(complete.cases(dat.design$variables$BokajGrams[dat.design$variables$SurveyYear == 1])) #n values year 1
-sum(complete.cases(dat.design$variables$BokajGrams[dat.design$variables$SurveyYear == 11])) #n values year 11
-
-#LUNCH
-#overall n values (n of participants who ate lunch)
-sum(complete.cases(dat.design$variables$LsumMeatg[dat.design$variables$SurveyYear == 1])) #n values year 1
-sum(complete.cases(dat.design$variables$LsumMeatg[dat.design$variables$SurveyYear == 11])) #n values year 11
-
-##g per occasion##
-lm_summary(response_var = "LsumMeatg", design = dat.design)
-lm_summary(response_var = "LsumProcessedg", design = dat.design)
-lm_summary(response_var = "LsumRedg", design = dat.design)
-lm_summary(response_var = "LsumWhiteg", design = dat.design)
-lm_summary(response_var = "LokajGrams", design = dat.design)
-
-#p values and counts (need counts for portion size as it'll differ by meat type)
-summary(svyglm(LsumMeatg ~ SurveyYear, dat.design))
-sum(complete.cases(dat.design$variables$LgperokajMeat[dat.design$variables$SurveyYear == 1])) #n values year 1
-sum(complete.cases(dat.design$variables$LgperokajMeat[dat.design$variables$SurveyYear == 11])) #n values year 11
-summary(svyglm(LsumProcessedg ~ SurveyYear, dat.design))
-sum(complete.cases(dat.design$variables$LgperokajProcessed[dat.design$variables$SurveyYear == 1])) #n values year 1
-sum(complete.cases(dat.design$variables$LgperokajProcessed[dat.design$variables$SurveyYear == 11])) #n values year 11
-summary(svyglm(LsumRedg ~ SurveyYear, dat.design))
-sum(complete.cases(dat.design$variables$LgperokajRed[dat.design$variables$SurveyYear == 1])) #n values year 1
-sum(complete.cases(dat.design$variables$LgperokajRed[dat.design$variables$SurveyYear == 11])) #n values year 11
-summary(svyglm(LsumWhiteg ~ SurveyYear, dat.design))
-sum(complete.cases(dat.design$variables$LgperokajWhite[dat.design$variables$SurveyYear == 1])) #n values year 1
-sum(complete.cases(dat.design$variables$LgperokajWhite[dat.design$variables$SurveyYear == 11])) #n values year 11
-summary(svyglm(LokajGrams ~ SurveyYear, dat.design))
-sum(complete.cases(dat.design$variables$LokajGrams[dat.design$variables$SurveyYear == 1])) #n values year 1
-sum(complete.cases(dat.design$variables$LokajGrams[dat.design$variables$SurveyYear == 11])) #n values year 11
-
-#DINNER
-#overall n values (n of participants who ate dinner)
-sum(complete.cases(dat.design$variables$DsumMeatg[dat.design$variables$SurveyYear == 1])) #n values year 1
-sum(complete.cases(dat.design$variables$DsumMeatg[dat.design$variables$SurveyYear == 11])) #n values year 11
-
-##g per occasion##
-lm_summary(response_var = "DsumMeatg", design = dat.design)
-lm_summary(response_var = "DsumProcessedg", design = dat.design)
-lm_summary(response_var = "DsumRedg", design = dat.design)
-lm_summary(response_var = "DsumWhiteg", design = dat.design)
-lm_summary(response_var = "DokajGrams", design = dat.design)
-
-#p values and counts (need counts for portion size as it'll differ by meat type)
-summary(svyglm(DsumMeatg ~ SurveyYear, dat.design))
-sum(complete.cases(dat.design$variables$DgperokajMeat[dat.design$variables$SurveyYear == 1])) #n values year 1
-sum(complete.cases(dat.design$variables$DgperokajMeat[dat.design$variables$SurveyYear == 11])) #n values year 11
-summary(svyglm(DsumProcessedg ~ SurveyYear, dat.design))
-sum(complete.cases(dat.design$variables$DgperokajProcessed[dat.design$variables$SurveyYear == 1])) #n values year 1
-sum(complete.cases(dat.design$variables$DgperokajProcessed[dat.design$variables$SurveyYear == 11])) #n values year 11
-summary(svyglm(DsumRedg ~ SurveyYear, dat.design))
-sum(complete.cases(dat.design$variables$DgperokajRed[dat.design$variables$SurveyYear == 1])) #n values year 1
-sum(complete.cases(dat.design$variables$DgperokajRed[dat.design$variables$SurveyYear == 11])) #n values year 11
-summary(svyglm(DsumWhiteg ~ SurveyYear, dat.design))
-sum(complete.cases(dat.design$variables$DgperokajWhite[dat.design$variables$SurveyYear == 1])) #n values year 1
-sum(complete.cases(dat.design$variables$DgperokajWhite[dat.design$variables$SurveyYear == 11])) #n values year 11
-summary(svyglm(DokajGrams ~ SurveyYear, dat.design))
-sum(complete.cases(dat.design$variables$DokajGrams[dat.design$variables$SurveyYear == 1])) #n values year 1
-sum(complete.cases(dat.design$variables$DokajGrams[dat.design$variables$SurveyYear == 11])) #n values year 11
-
+ListToFeed <- c("BsumMeatg", "BsumProcessedg", "BsumRedg", "BsumWhiteg",
+                "LsumMeatg", "LsumProcessedg", "LsumRedg", "LsumWhiteg",
+                "DsumMeatg", "DsumProcessedg", "DsumRedg", "DsumWhiteg")
+run("sitable3")
 
 ##########################SI TABLE 2 - analysis by covariates########################
 
