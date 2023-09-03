@@ -9,6 +9,7 @@ library(gridExtra)
 library(cowplot)
 library(MASS)
 library(purrr)
+library(tibble)
 library(gt)
 #set wd
 setwd("/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data")
@@ -29,7 +30,8 @@ for (var_name in names(dat)) {
     dat[[var_name]][dat$DiaryDaysCompleted < 4] <- NA
   }
 }
-check3days <- subset(dat, DiaryDaysCompleted == 3) #a widdle checky-poo
+check3days <- subset(dat, DiaryDaysCompleted == 3) #do a widdle checky-poo
+rm(check3days, excluded_vars, var_name)
 
 #define age brackets; <10 = 1; 11-17 = 2; 18-40 = 3; 41-59 = 4; >= 60 = 5
 dat <- dat %>%
@@ -57,6 +59,7 @@ varnames <- c("BsumMeatg", "BsumProcessedg", "BsumRedg", "BsumWhiteg",
 for (var in varnames) {
   dat[[var]] <- ifelse(dat[[var]] == 0, NA, dat[[var]])
 }
+rm(var, varnames)
 
 #set survey designs
 dat$SurveyYear <- as.numeric(dat$SurveyYear)
@@ -71,365 +74,260 @@ dat.design <-
     fpc = ~fpc
   )
 
-#####################TABLE 1 - DEMOGRAPHICS#######################
+#####################TABLE 1 - demographic analysis (all years)#######################
+#create empty data frames to hold results
+results_ageg <- data.frame(characteristic = unique(dat$AgeG))
+results_sex <- data.frame(characteristic = unique(dat$Sex))
+results_eqv <- data.frame(characteristic = unique(dat$eqv))
 
-#specify survey weighting structure for descriptive analysis
-survey_design <- dat %>%
-  as_survey_design(ids = area, # cluster ids
-                   weights = wti, # weight variable created above
-                   strata = astrata5 # sampling was stratified by district
-  )
+#function for demographic unweighted counts & percentages
+demographic <- function(dataset, group_var, results_df) {
+  results <- results_df
+  
+  #define survey design
+  survey_design <- dataset %>%
+    as_survey_design(ids = area, #cluster ids
+                     weights = wti, #weight variable
+                     strata = astrata5) #sampling was stratified by district
+  
+  #unweighted counts
+  unweighted_counts <- dataset %>%
+    group_by(!!sym(group_var)) %>%
+    summarise(count = n()) %>%
+    rename(characteristic = !!sym(group_var))
+  
+  #weighted percentages
+  weighted_percentages <- survey_design %>%
+    group_by(!!sym(group_var)) %>%
+    summarise(pct = survey_mean(na.rm = TRUE)) %>%
+    mutate(pct = round(100 * pct, 1)) %>%
+    select(-pct_se) %>% #remove SE row (not needed for demographic analysis)
+    rename(characteristic = !!sym(group_var))
+  
+  #merge counts & percentages
+  results <- results %>%
+    left_join(unweighted_counts, by = "characteristic") %>%
+    rename("Unweighted_Count" := count) %>%
+    left_join(weighted_percentages, by = "characteristic") %>%
+    rename("Weighted_Percent" := pct)
+  
+  return(results)
+}
+#perform the analysis for AgeG, Sex, and eqv
+results_ageg <- demographic(dat, "AgeG", results_ageg)
+results_sex <- demographic(dat, "Sex", results_sex)
+results_eqv <- demographic(dat, "eqv", results_eqv)
 
-# Function to obtain counts and percentages
-get_data <- function(variable, characteristic_name) {
-  counts <- table(dat[[variable]]) %>%
-    as.data.frame() %>%
-    rename(Group = Var1, `Survey Years 1–11` = Freq)
+#rename characteristic column for display purposes in table and arrange rows
+results_ageg$characteristic <- recode(results_ageg$characteristic, "1" = "≤10", "2" = "11–17", "3" = "18–40", "4" = "41–59", "5" = "≥60")
+ordered_levels_ageg <- c("≤10", "11–17", "18–40", "41–59", "≥60")
+results_ageg <- results_ageg %>% arrange(match(characteristic, ordered_levels_ageg))
+
+results_sex$characteristic <- recode(results_sex$characteristic, "M" = "Male", "F" = "Female")
+ordered_levels_sex <- c("Male", "Female")
+results_sex <- results_sex %>% arrange(match(characteristic, ordered_levels_sex))
+
+results_eqv$characteristic <- case_when(
+  results_eqv$characteristic == "1" ~ "Highest tertile",
+  results_eqv$characteristic == "2" ~ "Middle tertile",
+  results_eqv$characteristic == "3" ~ "Lowest tertile",
+  is.na(results_eqv$characteristic) ~ "Missing",
+  TRUE ~ results_eqv$characteristic #leaves other values unchanged (this was messing up before)
+)
+ordered_levels_eqv <- c("Lowest tertile", "Middle tertile", "Highest tertile", "Missing")
+results_eqv <- results_eqv %>% arrange(match(characteristic, ordered_levels_eqv))
+
+#combine three result data frames
+final_results <- rbind(results_ageg, results_sex, results_eqv)
+table1 <- final_results
+rm(final_results, results_ageg, results_sex, results_eqv,
+   ordered_levels_ageg, ordered_levels_sex, ordered_levels_eqv,
+   demographic)
+
+
+#################SI TABLE 1 - demographic analysis year by year#############
+#create empty data frames to hold results
+results_ageg <- data.frame(characteristic = unique(dat$AgeG))
+results_sex <- data.frame(characteristic = unique(dat$Sex))
+results_eqv <- data.frame(characteristic = unique(dat$eqv))
+
+#function for demographic unweighted counts & percentages (with a year-by-year loop)
+demo_yearby <- function(dataset, group_var, results_df) {
+  results <- results_df
   
-  pcts <- survey_design %>%
-    group_by_at(variable) %>%
-    summarise(`Survey-weighted %` = round(survey_mean()*100, 1)) %>%
-    rename(Group = !!variable)
-  
-  full_data <- left_join(counts, pcts, by = "Group") %>%
-    mutate(Characteristic = characteristic_name)
-  
-  return(full_data)
+  for (year in 1:11) {
+    dat_subset <- dataset %>% filter(SurveyYear == year)
+    
+    if (nrow(dat_subset) > 0) {
+      survey_design <- dat_subset %>%
+        as_survey_design(ids = area, weights = wti, strata = astrata5)
+      
+      unweighted_counts <- dat_subset %>%
+        group_by(!!sym(group_var)) %>%
+        summarise(count = n()) %>%
+        rename(characteristic = !!sym(group_var))
+      
+      weighted_percentages <- survey_design %>%
+        group_by(!!sym(group_var)) %>%
+        summarise(pct = survey_mean(na.rm = TRUE)) %>%
+        mutate(pct = round(100 * pct, 1)) %>% 
+        select(-pct_se) %>% #remove SE row (not needed for demographic analysis)
+        rename(characteristic = !!sym(group_var))
+      
+      colname1 <- paste0("Unweighted_Count_Year_", year)
+      colname2 <- paste0("Weighted_Percent_Year_", year)
+      
+      results <- results %>%
+        left_join(unweighted_counts, by = "characteristic") %>%
+        rename(!!colname1 := count) %>%
+        left_join(weighted_percentages, by = "characteristic") %>%
+        rename(!!colname2 := pct)
+    }
+  }
+  return(results)
 }
 
-# Function to add missing data for income
-add_missing_income <- function(df) {
-  df %>%
-    add_row(Group = "Missing",
-            `Survey Years 1–11` = 15655 - sum(df$`Survey Years 1–11`, na.rm = TRUE),
-            `Survey-weighted %` = 100 - sum(df$`Survey-weighted %`, na.rm = TRUE))
-}
+#perform the analysis for AgeG, Sex, and eqv
+results_ageg <- demo_yearby(dat, "AgeG", results_ageg)
+results_sex <- demo_yearby(dat, "Sex", results_sex)
+results_eqv <- demo_yearby(dat, "eqv", results_eqv)
 
-# Combine and process tables
-final_table <- list(
-  get_data("AgeG", "Age group (years)"),
-  get_data("Sex", "Sex"),
-  add_missing_income(get_data("eqv", "Equivalised income"))
-) %>%
-  bind_rows() %>%
-  mutate(
-    Group = ifelse(!is.na(Group) & Characteristic == "Age group (years)",
-                   c("1" = "≤10", "2" = "11–17", "3" = "18–40", "4" = "41–59", "5" = "≥60")[Group],
-                   Group),
-    Group = ifelse(!is.na(Group) & Characteristic == "Equivalised income",
-                   c("1" = "Lowest tertile", "2" = "Middle tertile", "3" = "Highest tertile")[Group],
-                   Group),
-    Group = ifelse(!is.na(Group) & Characteristic == "Sex",
-                   c("M" = "Male", "F" = "Female")[Group],
-                   Group)
-  ) %>%
-  arrange(
-    Characteristic,
-    case_when(
-      Characteristic == "Age group (years)" ~ as.integer(factor(Group, levels = c("≤10", "11–17", "18–40", "41–59", "≥60"))),
-      Characteristic == "Equivalised income" ~ as.integer(factor(Group, levels = c("Lowest tertile", "Middle tertile", "Highest tertile"))),
-      TRUE ~ as.integer(`Survey Years 1–11`)
-    )
-  ) %>%
-  mutate(
-    Characteristic = ifelse(!is.na(Group) & !is.na(Characteristic), paste0(Group), Characteristic)
-  ) %>%
-  mutate(
-    Characteristic = replace(Characteristic, is.na(Characteristic), "Equivalised income missing")
-  ) %>%
-  select(Characteristic, `Survey Years 1–11`, `Survey-weighted %`)
+#rename characteristic column for display purposes in table and arrange rows
+results_ageg$characteristic <- recode(results_ageg$characteristic, "1" = "≤10", "2" = "11–17", "3" = "18–40", "4" = "41–59", "5" = "≥60")
+ordered_levels_ageg <- c("≤10", "11–17", "18–40", "41–59", "≥60")
+results_ageg <- results_ageg %>% arrange(match(characteristic, ordered_levels_ageg))
 
-table1 <- final_table
-rm(check3days, final_table)
+results_sex$characteristic <- recode(results_sex$characteristic, "M" = "Male", "F" = "Female")
+ordered_levels_sex <- c("Male", "Female")
+results_sex <- results_sex %>% arrange(match(characteristic, ordered_levels_sex))
 
+results_eqv$characteristic <- case_when(
+  results_eqv$characteristic == "1" ~ "Highest tertile",
+  results_eqv$characteristic == "2" ~ "Middle tertile",
+  results_eqv$characteristic == "3" ~ "Lowest tertile",
+  is.na(results_eqv$characteristic) ~ "Missing",
+  TRUE ~ results_eqv$characteristic #leaves other values unchanged (this was messing up before)
+)
+ordered_levels_eqv <- c("Lowest tertile", "Middle tertile", "Highest tertile", "Missing")
+results_eqv <- results_eqv %>% arrange(match(characteristic, ordered_levels_eqv))
 
+# Combine the three results data frames
+final_results <- rbind(results_ageg, results_sex, results_eqv)
+sitable1 <- final_results
+rm(final_results, results_ageg, results_sex, results_eqv,
+   ordered_levels_ageg, ordered_levels_sex, ordered_levels_eqv,
+   demo_yearby)
 
+#############################TABLE 2 - main analysis (also SI table 2) ###################
 
-
-#YEAR-BY-YEAR DEMOGRAPHIC ANALYSIS
-
-# Creating a list of years
-years <- unique(dat$SurveyYear)
-
-# Define a function that runs your analyses on a survey design
-analyze_data <- function(year) {
+#function to calculate mean and SE
+meanies <- function(Xvar, year, dataset) {
+  #replace Xvar with variable name
+  #(idk why i have to do this, but it wasn't working without it and it wouldn't
+  #let me just add the tilda to the beginning of Xvar for some reason...)
+  form_var <- as.formula(paste("~", Xvar))
   
-  # Subset data for the year
-  dat_subset <- dat %>% filter(SurveyYear == year)
+  #subset data per year
+  dat_subset <- dataset %>% filter(SurveyYear == year)
   
-  # Define survey design for subset
+  #set survey design
   survey_design <- dat_subset %>%
-    as_survey_design(ids = area, # cluster ids
-                     weights = wti, # weight variable created above
-                     strata = astrata5 # sampling was stratified by district
-    )
+    as_survey_design(ids = area, weights = wti, strata = astrata5)
   
-  # age groups
-  age <- table(dat_subset$AgeG)
-  age_pct <- survey_design %>%
-    group_by(AgeG) %>% 
-    summarise(pct = survey_mean(na.rm = TRUE))
+  #calculate the survey-weighted mean and SE
+  Xval <- svymean(form_var, design = survey_design, na.rm = TRUE)
   
-  # sex
-  sex <- table(dat_subset$Sex)
-  sex_pct <- survey_design %>%
-    group_by(Sex) %>%
-    summarise(pct = survey_mean(na.rm = TRUE))
+  #extract mean and SE, round to one dp
+  mean_val <- round(as.numeric(Xval), 1)
+  se_val <- round(sqrt(attr(Xval, "var")), 1) #I feel like there is a simpler way to extract SE,
+  #but couldn't figure it out so just pulling it manually
   
-  # income tertiles
-  income <- table(dat_subset$eqv)
-  income_pct <- survey_design %>%
-    group_by(eqv) %>%
-    summarise(pct = survey_mean(na.rm = TRUE))
+  #combine mean & SE into one column
+  mean_se_combined <- paste(mean_val, " (", se_val, ")", sep = "")
   
-  # meat consumers
-  survey_design <- mutate(survey_design, meat_gt_0 = as.numeric(sumMeatg > 0))
-  meat <- table(survey_design$variables$meat_gt_0)
-  meat_pct <- survey_design %>%
-    group_by(meat_gt_0) %>%
-    summarise(pct = survey_mean(na.rm = TRUE))
+  #create a character vector (to store the mean + SE values together)
+  year_values <- mean_se_combined
+  names(year_values) <- paste("Year", year)
   
-  return(list(age = age, age_pct = age_pct,
-              sex = sex, sex_pct = sex_pct,
-              income = income, income_pct = income_pct,
-              meat = meat, meat_pct = meat_pct))
+  return(year_values)
 }
-
-#apply function to each year of the data
-results <- map(years, ~analyze_data(.x))
-
-#names of the results list will be the years
-names(results) <- years
-
-# Loop through the years and print results
-for(year in names(results)) {
-  cat("\nResults for Survey Year:", year, "\n")
+#function to take "meanies" function and loop through years (separate functions to increase modularity) 
+meaniebobeanies <- function(var_list, dataset) {
+  #create empty dataframe to store results
+  results <- data.frame()
   
-  cat("\nAge groups:\n")
-  print(results[[year]]$age)
-  cat("\nAge groups percentage:\n")
-  print(results[[year]]$age_pct)
-  
-  cat("\nSex:\n")
-  print(results[[year]]$sex)
-  cat("\nSex percentage:\n")
-  print(results[[year]]$sex_pct)
-  
-  cat("\nIncome tertiles:\n")
-  print(results[[year]]$income)
-  cat("\nIncome tertiles percentage:\n")
-  print(results[[year]]$income_pct)
-  
-  cat("\nMeat consumers:\n")
-  print(results[[year]]$meat)
-  cat("\nMeat consumers percentage:\n")
-  print(results[[year]]$meat_pct)
-}
-
-
-#############################TABLE 2 - MAIN ANALYSIS ###################
-
-#custom summary function for exponentiated coefficients
-#and also calculates 95% confidence interval values
-exp_summary <- function(response_var, design) {
-  #define the model formula dynamically
-  model_formula <- as.formula(paste(response_var, "~ SurveyYear"))
-  
-  #fit the model
-  model <- svyglm(model_formula, family=poisson(link = "log"), design = design)
-  
-  #exponentiate the sum between the intercept and SurveyYearX coefficients
-  exp_diff <- exp(coef(model)["(Intercept)"] + coef(model)[-1])
-  
-  #exponentiate the confidence intervals
-  conf_int <- confint(model)
-  exp_conf_int <- exp(conf_int)
-  
-  #calculate the confidence intervals for the differences
-  exp_diff_conf_int <- exp(conf_int["(Intercept)",] + conf_int[-1,])
-  
-  #create a new "summary" object
-  exp_summary_obj <- summary(model)
-  
-  #calculate the z-values and p-values
-  z_values <- coef(model) / exp_summary_obj$coefficients[, "Std. Error"]
-  p_values <- 2 * pnorm(-abs(z_values))
-  
-  #replace the coefficients and confidence intervals with the exponentiated values
-  exp_summary_obj$coefficients <- rbind(c(exp(coef(model)["(Intercept)"]), exp_summary_obj$coefficients[1, "Std. Error"], exp_conf_int[1,], p_values[1]),
-                                        cbind(exp_diff,
-                                              exp_summary_obj$coefficients[-1, "Std. Error"],
-                                              exp_diff_conf_int,
-                                              p_values[-1]))
-  
-  #update the column names
-  colnames(exp_summary_obj$coefficients) <- c("Exp(Coef)", "Std. Error", "2.5 %", "97.5 %", "Pr(>|z|)")
-  
-  #include the significance stars
-  signif.stars <- options("show.signif.stars")
-  if (is.logical(signif.stars) && signif.stars) {
-    exp_summary_obj$coefficients <- cbind(exp_summary_obj$coefficients, 
-                                          exp_summary_obj$coefficients[, "Pr(>|z|)"])
-    colnames(exp_summary_obj$coefficients)[ncol(exp_summary_obj$coefficients)] <- " "
-    exp_summary_obj$coefficients[, " "] <- symnum(exp_summary_obj$coefficients[, "Pr(>|z|)"], 
-                                                  corr = FALSE, na = FALSE,
-                                                  cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
-                                                  symbols = c("***", "**", "*", ".", " "))
-  }
-  #ADD A LITTLE 'difference of years 1 to 11 + 95%CI' ROW AT THE BOTTOM OF THE OUTPUT
-  #correcting the name for Intercept term [it's a wee bit messed up]
-  rownames(exp_summary_obj$coefficients)[rownames(exp_summary_obj$coefficients) == ""] <- "Intercept"
-  
-  #round the coefficients and the confidence intervals to 1 decimal place
-  exp_summary_obj$coefficients <- round(exp_summary_obj$coefficients, 1)
-  
-  #calculate the difference using the rounded values
-  diff_coefs <- exp_summary_obj$coefficients["Intercept", "Exp(Coef)"] - exp_summary_obj$coefficients["SurveyYear11", "Exp(Coef)"]
-  
-  #calculate the standard errors for intercept, SurveyYear11, and the difference
-  se_intercept <- exp_summary_obj$coefficients["Intercept", "Std. Error"]
-  se_surveyyear11 <- exp_summary_obj$coefficients["SurveyYear11", "Std. Error"]
-  se_diff <- round(sqrt(se_intercept^2 + se_surveyyear11^2), 1)
-  
-  #calculate the confidence interval for the difference
-  ci_diff <- c(round(diff_coefs - 1.96 * se_diff, 1), round(diff_coefs + 1.96 * se_diff, 1))
-  
-  #add values to the summary object
-  exp_summary_obj$coefficients <- rbind(exp_summary_obj$coefficients, 
-                                        c(diff_coefs, se_diff, ci_diff[1], ci_diff[2], NA))
-  rownames(exp_summary_obj$coefficients)[nrow(exp_summary_obj$coefficients)] <- "Diff"
-  
-  return(exp_summary_obj)
-}
-lm_summary <- function(response_var, design) {
-  #define the model formula dynamically
-  model_formula <- as.formula(paste(response_var, "~ SurveyYear"))
-  
-  #fit the model
-  model <- svyglm(model_formula, design = design)
-  
-  #calculate the sum between the intercept and SurveyYearX coefficients
-  diff <- coef(model)["(Intercept)"] + coef(model)[-1]
-  
-  #calculate the confidence intervals
-  conf_int <- confint(model)
-  
-  #calculate the confidence intervals for the differences
-  diff_conf_int <- conf_int["(Intercept)",] + conf_int[-1,]
-  
-  #create a new "summary" object
-  summary_obj <- summary(model)
-  
-  #calculate the t-values and p-values
-  t_values <- coef(model) / summary_obj$coefficients[, "Std. Error"]
-  p_values <- 2 * pt(-abs(t_values), df.residual(model))
-  
-  #replace the coefficients and confidence intervals with the calculated values
-  summary_obj$coefficients <- rbind(c(coef(model)["(Intercept)"], summary_obj$coefficients[1, "Std. Error"], conf_int[1,], p_values[1]),
-                                    cbind(diff,
-                                          summary_obj$coefficients[-1, "Std. Error"],
-                                          diff_conf_int,
-                                          p_values[-1]))
-  
-  #update column names
-  colnames(summary_obj$coefficients) <- c("Coef", "Std. Error", "2.5 %", "97.5 %", "Pr(>|t|)")
-  
-  #include the significance stars
-  signif.stars <- options("show.signif.stars")
-  if (is.logical(signif.stars) && signif.stars) {
-    summary_obj$coefficients <- cbind(summary_obj$coefficients, 
-                                      summary_obj$coefficients[, "Pr(>|t|)"])
-    colnames(summary_obj$coefficients)[ncol(summary_obj$coefficients)] <- " "
-    summary_obj$coefficients[, " "] <- symnum(summary_obj$coefficients[, "Pr(>|t|)"], 
-                                              corr = FALSE, na = FALSE,
-                                              cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
-                                              symbols = c("***", "**", "*", ".", " "))
+  #loop through each variable in the list
+  for (var in var_list) {
+    combined <- numeric()
+    
+    #loop through each survey year
+    for (year in 1:11) {
+      year_values <- meanies(var, year, dataset)
+      combined <- c(combined, year_values)
+    }
+    
+    #convert to a one-row data frame
+    trans <- data.frame(t(combined))
+    
+    #add the 'next' variable row to the overall results data frame
+    results <- rbind(results, trans)
   }
   
-  #ADD A LITTLE 'difference of years 1 to 11 + 95%CI' ROW AT THE BOTTOM OF THE OUTPUT
-  #correct the name for Intercept term [it's a wee bit messed up]
-  rownames(summary_obj$coefficients)[rownames(summary_obj$coefficients) == ""] <- "Intercept"
-  
-  #round the coefficients and the confidence intervals to 1 decimal place
-  summary_obj$coefficients <- round(summary_obj$coefficients, 1)
-  
-  #calculate the difference of the intercept + SurveyYear11 coefficients
-  diff_coefs <- summary_obj$coefficients["Intercept", "Coef"] - summary_obj$coefficients["SurveyYear11", "Coef"]
-  
-  #calculate the standard errors for intercept, SurveyYear11, and the difference
-  se_intercept <- summary_obj$coefficients["Intercept", "Std. Error"]
-  se_surveyyear11 <- summary_obj$coefficients["SurveyYear11", "Std. Error"]
-  se_diff <- round(sqrt(se_intercept^2 + se_surveyyear11^2), 1)
-  
-  #calculate the confidence interval for the difference
-  ci_diff <- c(round(diff_coefs - 1.96 * se_diff, 1), round(diff_coefs + 1.96 * se_diff, 1))
-  
-  #add these values to the summary at the bottom
-  summary_obj$coefficients <- rbind(summary_obj$coefficients, 
-                                    c(diff_coefs, se_diff, ci_diff[1], ci_diff[2], NA))
-  rownames(summary_obj$coefficients)[nrow(summary_obj$coefficients)] <- "Diff"
-  
-  return(summary_obj)
+  return(results)
 }
-##MEAT DAYS##
-exp_summary(response_var = "MeatDays", design = dat.design)
-exp_summary(response_var = "ProcessedDays", design = dat.design)
-exp_summary(response_var = "RedDays", design = dat.design)
-exp_summary(response_var = "WhiteDays", design = dat.design)
-exp_summary(response_var = "NoMeatDays", design = dat.design)
+#list of variables to feed (add all variables desired for analysis here, then run)
+ListToFeed <- c("MeatDays", "avgMeatokaj", "gperokajMeat",
+                "ProcessedDays", "avgProcessedokaj", "gperokajProcessed",
+                "RedDays", "avgRedokaj", "gperokajRed",
+                "WhiteDays", "avgWhiteokaj", "gperokajWhite",
+                "NoMeatDays")
+final <- meaniebobeanies(ListToFeed, dat)
+#function to get P for trend across all years in Poisson model using existing dat.design
+ptrend <- function(variable, dat.design) {
+  form_var <- as.formula(paste(variable, "~ SurveyYear"))
+  
+  #if variable ends with 'Days' or 'okaj', run Poisson model, if not, run glm model
+  if (grepl("Days$", variable) || grepl("okaj$", variable)) {
+    print(paste("Running Poisson model for:", variable)) #check for correct model
+    model <- svyglm(form_var, family=poisson(link = "log"), design = dat.design)
+  } else {
+    print(paste("Running Linear model for:", variable)) #check for correct model
+    model <- svyglm(form_var, design = dat.design)
+  }
+  
+  p_value <- coef(summary(model))["SurveyYear", "Pr(>|t|)"]
+  
+  #round pval appropriately (3 deimals if <0.01, 2 otherwise)
+  if (p_value < 0.001) {
+    p_value_str <- "<0.001"
+  } else if (p_value < 0.01) {
+    p_value_str <- sprintf("%.3f", p_value)
+  } else {
+    p_value_str <- sprintf("%.2f", p_value)
+  }
+  
+  return(p_value_str)
+}
+#create vector to store p-values
+pvec <- character()
+#loop through each variable in ListToFeed
+for (var in ListToFeed) {
+  #get the p trend for each variable & add it to the vec
+  pval <- ptrend(var, dat.design) #using dat.design to pull from survey weighted glm
+  pvec <- c(pvec, pval)
+}
+#add ptrend column to dataset, change the rownames to the variables analyzed,
+final$`P for trend` <- pvec
+rownames(final) <- ListToFeed
+final <- rownames_to_column(final, var = "Meat Type")
+colnames(final) <- gsub("\\.", " ", colnames(final))
+sitable2 <- final
+table2 <- sitable2[, c("Meat Type", "Year 1", "Year 11", "P for trend")]
+rm(final, ListToFeed, p_for_trend, p_value, var, get_p_value_for_trend,
+   meanies, meaniebobeanies, pval, pvec, ptrend)
 
-##Meat occasions##
-exp_summary(response_var = "avgMeatokaj", design = dat.design)
-exp_summary(response_var = "avgProcessedokaj", design = dat.design)
-exp_summary(response_var = "avgRedokaj", design = dat.design)
-exp_summary(response_var = "avgWhiteokaj", design = dat.design)
-
-##g per occasion##
-lm_summary(response_var = "gperokajMeat", design = dat.design)
-lm_summary(response_var = "gperokajProcessed", design = dat.design)
-lm_summary(response_var = "gperokajRed", design = dat.design)
-lm_summary(response_var = "gperokajWhite", design = dat.design)
-lm_summary(response_var = "okajTotalGrams", design = dat.design)
-
-#p values (use only after setting SurveyYear to numeric)
-summary(svyglm(MeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
-summary(svyglm(ProcessedDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
-summary(svyglm(RedDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
-summary(svyglm(WhiteDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
-summary(svyglm(NoMeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design))
-
-summary(svyglm(avgMeatokaj ~ SurveyYear, family=poisson(link = "log"), dat.design))
-summary(svyglm(avgProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design))
-summary(svyglm(avgRedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design))
-summary(svyglm(avgWhiteokaj ~ SurveyYear, family=poisson(link = "log"), dat.design))
-
-summary(svyglm(gperokajMeat ~ SurveyYear, dat.design))
-summary(svyglm(gperokajProcessed ~ SurveyYear, dat.design))
-summary(svyglm(gperokajRed ~ SurveyYear, dat.design))
-summary(svyglm(gperokajWhite ~ SurveyYear, dat.design))
-
-#for analysis that need to look at years separately:
-y1$fpc <- 1629
-dat.design.y1 <-
-  svydesign(
-    id = ~area,
-    strata = ~astrata5,
-    data = y1,
-    weights = ~wti,
-    fpc = ~fpc
-  )
-y11$fpc <- 1076
-dat.design.y11 <-
-  svydesign(
-    id = ~area,
-    strata = ~astrata5,
-    data = y11,
-    weights = ~wti,
-    fpc = ~fpc
-  )
-
-#count #of participants in each survey year
-table(dat$SurveyYear)
+#unweighted count of participants in each survey year (not including those who have <4 diary days)
+table(dat$SurveyYear[dat$DiaryDaysCompleted == 4])
 
 
 #########################SI TABLE 1 - STM ANALYSIS########################
