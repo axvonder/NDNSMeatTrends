@@ -268,6 +268,18 @@ meaniebobeanies <- function(var_list, dataset) {
   return(results)
 }
 #function to get P for trend across all years in Poisson model using existing dat.design
+#but first make a wee function for roundning p-values (3 deimals if <0.01, 2 otherwise)
+roundies <- function(p_value) {
+  if (is.na(p_value)) {
+    return(NA)
+  } else if (p_value < 0.001) {
+    return("<0.001")
+  } else if (p_value < 0.01) {
+    return(sprintf("%.3f", p_value))
+  } else {
+    return(sprintf("%.2f", p_value))
+  }
+}
 ptrend <- function(variable, dat.design) {
   form_var <- as.formula(paste(variable, "~ SurveyYear"))
   
@@ -282,16 +294,10 @@ ptrend <- function(variable, dat.design) {
   
   p_value <- coef(summary(model))["SurveyYear", "Pr(>|t|)"]
   
-  #round pval appropriately (3 deimals if <0.01, 2 otherwise)
-  if (p_value < 0.001) {
-    p_value_str <- "<0.001"
-  } else if (p_value < 0.01) {
-    p_value_str <- sprintf("%.3f", p_value)
-  } else {
-    p_value_str <- sprintf("%.2f", p_value)
-  }
+  #round
+  peezies <- roundies(p_value)
   
-  return(p_value_str)
+  return(peezies)
 }
 run <- function(analysis) {
   X <- meaniebobeanies(ListToFeed, dat)
@@ -331,180 +337,253 @@ ListToFeed <- c("BsumMeatg", "BsumProcessedg", "BsumRedg", "BsumWhiteg",
                 "DsumMeatg", "DsumProcessedg", "DsumRedg", "DsumWhiteg")
 run("sitable3")
 
-##########################SI TABLE 2 - analysis by covariates########################
+##########################SI TABLE 4 - analysis by covariates########################
 
-#use this general structure for the following functions to extract beta coefficient
-#estimates in their exponentiated form (leaving this information in for reasoning).
-#I give age as an example because that's the most complex. Sex & eqv are simpler
-#b0 #intercept
-#b1 #survey year 11
-#b2.1 #ageG1
-#b2.2 #ageG2
-#b2.3 #ageG4
-#b2.4 #ageG5
-#b3.1 #ageG1 @ y11
-#b3.2 #ageG2 @y11
-#b3.3 #ageG4 @y11
-#b3.4 #ageG5 @y11
-#18-40
-#exp(b0)
-#exp(b0+b1)
-#<10
-#exp(b0+b2.1)
-#exp(b0+b2.1+b1+b3.1)
-#11-17
-#exp(b0+b2.2)
-#exp(b0+b2.2+b1+b3.2)
-#41-59
-#exp(b0+b2.3)
-#exp(b0+b2.3+b1+b3.3)
-#>=60
-#exp(b0+b2.4)
-#exp(b0+b2.4+b1+b3.4)
-
-#SEX
-exp_interaction_CI_sex <- function(response_var, design) {
-  model_formula <- as.formula(paste(response_var, "~ SurveyYear + Sex + SurveyYear * Sex"))
-  model <- svyglm(model_formula, family = poisson(link = "log"), design = design)
-  model_summary <- summary(model)
-  betas <- coef(model)
-  se <- coef(model_summary)[, "Std. Error"]
-  #combinations of coefficients
-  b_combinations <- c(
-    betas["(Intercept)"],
-    betas["(Intercept)"] + betas["SurveyYear11"],
-    betas["(Intercept)"] + betas["SexF"],
-    betas["(Intercept)"] + betas["SexF"] + betas["SurveyYear11"] + betas["SurveyYear11:SexF"]
-  )
-  #standard errors for combinations
-  se_combinations <- c(
-    se["(Intercept)"],
-    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
-    sqrt(se["(Intercept)"]^2 + se["SexF"]^2),
-    sqrt(se["(Intercept)"]^2 + se["SexF"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:SexF"]^2)
-  )
-  #exponentiated coefficients and CI for combinations
-  exp_coef <- round(exp(b_combinations), 2)
-  lower_bound <- round(exp(b_combinations - 1.96 * se_combinations), 2)
-  upper_bound <- round(exp(b_combinations + 1.96 * se_combinations), 2)
+#modified meanies to include a sex parameter
+meaniessex <- function(Xvar, year, dataset, sex) {
+  dat_subset <- dataset %>% filter(SurveyYear == year & Sex == sex)
+  #replace Xvar with variable name
+  #(idk why i have to do this, but it wasn't working without it and it wouldn't
+  #let me just add the tilda to the beginning of Xvar for some reason...)
+  form_var <- as.formula(paste("~", Xvar))
   
-  #difference between groups
-  diff_coefs <- c(exp_coef[1] - exp_coef[2], exp_coef[3] - exp_coef[4])
+  #set survey design
+  survey_design <- dat_subset %>%
+    as_survey_design(ids = area, weights = wti, strata = astrata5)
   
-  #standard error of the difference
-  se_diff <- c(sqrt(sum(se_combinations[1:2]^2)), sqrt(sum(se_combinations[3:4]^2)))
+  #calculate the survey-weighted mean and SE
+  Xval <- svymean(form_var, design = survey_design, na.rm = TRUE)
   
-  #confidence interval for the difference
-  ci_diff_lower <- c(diff_coefs[1] - 1.96 * se_diff[1], diff_coefs[2] - 1.96 * se_diff[2])
-  ci_diff_upper <- c(diff_coefs[1] + 1.96 * se_diff[1], diff_coefs[2] + 1.96 * se_diff[2])
+  #extract mean and SE, round to one dp
+  mean_val <- round(as.numeric(Xval), 1)
+  se_val <- round(sqrt(attr(Xval, "var")), 1) #I feel like there is a simpler way to extract SE,
+  #but couldn't figure it out so just pulling it manually
   
-  #data frame to present the results
-  result_table <- rbind(
-    data.frame(
-      Group = c("M_Y1", "M_Y11", "F_Y1", "F_Y11"),
-      Beta = round(exp_coef, 1),
-      Lower = round(lower_bound, 1),
-      Upper = round(upper_bound, 1),
-      stringsAsFactors = FALSE
-    ),
-    data.frame(
-      Group = c("Diff_M", "Diff_F"),
-      Beta = round(diff_coefs, 1),
-      Lower = round(ci_diff_lower, 1),
-      Upper = round(ci_diff_upper, 1),
-      stringsAsFactors = FALSE
-    )
-  )
-  return(result_table)
+  #combine mean & SE into one column
+  mean_se_combined <- paste(mean_val, " (", se_val, ")", sep = "")
+  
+  #create a character list (to store the mean + SE values together)
+  year_values <- list()
+  year_values[[paste("Year", year)]] <- mean_se_combined
+  
+  return(year_values)
 }
-glm_interaction_CI_sex <- function(response_var, design) {
-  model_formula <- as.formula(paste(response_var, "~ SurveyYear + Sex + SurveyYear * Sex"))
-  model <- svyglm(model_formula, design = design)
-  model_summary <- summary(model)
-  betas <- coef(model)
-  se <- coef(model_summary)[, "Std. Error"]
-  #combinations of coefficients
-  b_combinations <- c(
-    betas["(Intercept)"],
-    betas["(Intercept)"] + betas["SurveyYear11"],
-    betas["(Intercept)"] + betas["SexF"],
-    betas["(Intercept)"] + betas["SexF"] + betas["SurveyYear11"] + betas["SurveyYear11:SexF"]
-  )
-  #standard errors for combinations
-  se_combinations <- c(
-    se["(Intercept)"],
-    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
-    sqrt(se["(Intercept)"]^2 + se["SexF"]^2),
-    sqrt(se["(Intercept)"]^2 + se["SexF"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:SexF"]^2)
-  )
-  #CI for combinations
-  lower_bound <- round(b_combinations - 1.96 * se_combinations, 1)
-  upper_bound <- round(b_combinations + 1.96 * se_combinations, 1)
-  
-  #difference between groups
-  diff_coefs <- c(b_combinations[1] - b_combinations[2], b_combinations[3] - b_combinations[4])
-  
-  #standard error of the difference
-  se_diff <- c(sqrt(sum(se_combinations[1:2]^2)), sqrt(sum(se_combinations[3:4]^2)))
-  
-  #confidence interval for the difference
-  ci_diff_lower <- c(diff_coefs[1] - 1.96 * se_diff[1], diff_coefs[2] - 1.96 * se_diff[2])
-  ci_diff_upper <- c(diff_coefs[1] + 1.96 * se_diff[1], diff_coefs[2] + 1.96 * se_diff[2])
-  
-  #data frame to present the results
-  result_table <- rbind(
-    data.frame(
-      Group = c("M_Y1", "M_Y11", "F_Y1", "F_Y11"),
-      Beta = round(b_combinations, 1),
-      Lower = round(lower_bound, 1),
-      Upper = round(upper_bound, 1),
-      stringsAsFactors = FALSE
-    ),
-    data.frame(
-      Group = c("Diff_M", "Diff_F"),
-      Beta = round(diff_coefs, 1),
-      Lower = round(ci_diff_lower, 1),
-      Upper = round(ci_diff_upper, 1),
-      stringsAsFactors = FALSE
-    )
-  )
-  return(result_table)
+#modified meaniebobeanies to include a sex parameter
+meaniebobeaniessex <- function(var_list, dataset, sex) {
+  results <- data.frame()
+  for (var in var_list) {
+    combined <- numeric()
+    for (year in 1:11) {
+      year_values <- meaniessex(var, year, dataset, sex)
+      combined <- c(combined, year_values)
+    }
+    trans <- data.frame(t(combined))
+    results <- rbind(results, trans)
+  }
+  return(results)
 }
-#days
-exp_interaction_CI_sex(response_var = "MeatDays", design = dat.design)
-exp_interaction_CI_sex(response_var = "ProcessedDays", design = dat.design)
-exp_interaction_CI_sex(response_var = "RedDays", design = dat.design)
-exp_interaction_CI_sex(response_var = "WhiteDays", design = dat.design)
-exp_interaction_CI_sex(response_var = "NoMeatDays", design = dat.design)
-#occasions
-exp_interaction_CI_sex(response_var = "avgMeatokaj", design = dat.design)
-exp_interaction_CI_sex(response_var = "avgProcessedokaj", design = dat.design)
-exp_interaction_CI_sex(response_var = "avgRedokaj", design = dat.design)
-exp_interaction_CI_sex(response_var = "avgWhiteokaj", design = dat.design)
-#portion size
-glm_interaction_CI_sex(response_var = "gperokajMeat", design = dat.design)
-glm_interaction_CI_sex(response_var = "gperokajProcessed", design = dat.design)
-glm_interaction_CI_sex(response_var = "gperokajRed", design = dat.design)
-glm_interaction_CI_sex(response_var = "gperokajWhite", design = dat.design)
+pintsex <- function(variable, dat.design) {
+  form_var <- as.formula(paste(variable, "~ SurveyYear + Sex + SurveyYear * Sex"))
+  
+  #if variable ends with 'Days' or 'okaj', run Poisson model, if not, run glm model
+  if (grepl("Days$", variable) || grepl("okaj$", variable)) {
+    print(paste("Running Poisson model for:", variable))
+    model <- svyglm(form_var, family = poisson(link = "log"), design = dat.design)
+  } else {
+    print(paste("Running Linear model for:", variable))
+    model <- svyglm(form_var, design = dat.design)
+  }
+  
+  #extract p-value for men
+  modsum <- summary(model)
+  p_men <- modsum$coefficients["SurveyYear", "Pr(>|t|)"]
+  p_men_women_diff <- modsum$coefficients["SurveyYear:SexF", "Pr(>|t|)"]
+  
+  #extract coefficients and covariance matrix (to calculate B1 + B3)
+  coefs <- coef(model)
+  cov_matrix <- vcov(model)
+  
+  #calculate effect, variance, and SE for change in women (baseline to Y11)
+  effect_women <- coefs["SurveyYear"] + coefs["SurveyYear:SexF"]
+  var_women <- cov_matrix["SurveyYear", "SurveyYear"] + 
+    cov_matrix["SurveyYear:SexF", "SurveyYear:SexF"] + 
+    2 * cov_matrix["SurveyYear", "SurveyYear:SexF"]
+  se_women <- sqrt(var_women)
+  
+  #calculate t-value and p-value for change in women
+  t_value <- effect_women / se_women
+  p_women <- 2 * (1 - pt(abs(t_value), df = df.residual(model)))
+  
+  #combine B1, B1+B3, & B3 into a one-row data frame (to merge with mean estimations)
+  peezies <- data.frame(Men_P = p_men, Women_P = p_women, Men_Women_Pint = p_men_women_diff)
+  
+  #round - got weird having 3 columns instead of 1, so had to implement this wee loop
+  for (col in colnames(peezies)) {
+    peezies[[col]] <- roundies(peezies[[col]])
+  }
+  
+  return(peezies)
+}
+runsex <- function(analysis) {
+  #Males
+  X <- meaniebobeaniessex(ListToFeed, dat, "M")
+  pvec <- character()
+  
+  for (var in ListToFeed) {
+    #get p-value for men
+    pvalM <- pintsex(var, dat.design)$Men_P
+    pvec <- c(pvec, pvalM)
+  }
+  
+  #add the column for men's p-values
+  X$pvalM <- pvec
+  
+  # Run for Females
+  X1 <- meaniebobeaniessex(ListToFeed, dat, "F")
+  colnames(X1) <- paste0("F_", colnames(X1))
+  pvec1 <- character()
+  
+  for (var in ListToFeed) {
+    #get p-value for women
+    pvalW <- pintsex(var, dat.design)$Women_P
+    pvec1 <- c(pvec1, pvalW)
+  }
+  
+  #add the column for women's p-values
+  X1$pvalW <- pvec1
+  
+  #combine
+  X <- cbind(X, X1)
+  
+  pvec2 <- character()
+  for (var in ListToFeed) {
+    #get p-value for men-women interaction
+    pvalMW <- pintsex(var, dat.design)$Men_Women_Pint
+    pvec2 <- c(pvec2, pvalMW)
+  }
+  
+  #add the column for men and women difference p-values
+  X$PintMW <- pvec2
+  
+  rownames(X) <- ListToFeed
+  X <- rownames_to_column(X, var = "Meat Type")
+  colnames(X) <- gsub("\\.", " ", colnames(X))
+  #create dataframe with name
+  assign(analysis, X, envir = globalenv())
+}
 
-#p values (use only after setting SurveyYear to numeric)
-summary(svyglm(MeatDays ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
-summary(svyglm(ProcessedDays ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
-summary(svyglm(RedDays ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
-summary(svyglm(WhiteDays ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
-summary(svyglm(NoMeatDays ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
+ListToFeed <- c("MeatDays", "avgMeatokaj", "gperokajMeat",
+                "ProcessedDays", "avgProcessedokaj", "gperokajProcessed",
+                "RedDays", "avgRedokaj", "gperokajRed",
+                "WhiteDays", "avgWhiteokaj", "gperokajWhite")
+runsex("sitable4a")
+rm(ListToFeed)
 
-summary(svyglm(avgMeatokaj ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
-summary(svyglm(avgProcessedokaj ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
-summary(svyglm(avgRedokaj ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
-summary(svyglm(avgWhiteokaj ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
 
-summary(svyglm(gperokajMeat ~ SurveyYear + Sex + SurveyYear * Sex, dat.design))
-summary(svyglm(gperokajProcessed ~ SurveyYear + Sex + SurveyYear * Sex, dat.design))
-summary(svyglm(gperokajRed ~ SurveyYear + Sex + SurveyYear * Sex, dat.design))
-summary(svyglm(gperokajWhite ~ SurveyYear + Sex + SurveyYear * Sex, dat.design))
 
-summary(svyglm(MeatDays ~ SurveyYear + Sex + SurveyYear * Sex, family = poisson(link = "log"), dat.design))
+
+
+
+
+
+
+
+
+#modified meanies to include an age parameter
+meaniesage <- function(Xvar, year, dataset, age) {
+  dat_subset <- dataset %>% filter(SurveyYear == year & AgeG == age)
+  #replace Xvar with variable name
+  #(idk why i have to do this, but it wasn't working without it and it wouldn't
+  #let me just add the tilda to the beginning of Xvar for some reason...)
+  form_var <- as.formula(paste("~", Xvar))
+  
+  #set survey design
+  survey_design <- dat_subset %>%
+    as_survey_design(ids = area, weights = wti, strata = astrata5)
+  
+  #calculate the survey-weighted mean and SE
+  Xval <- svymean(form_var, design = survey_design, na.rm = TRUE)
+  
+  #extract mean and SE, round to one dp
+  mean_val <- round(as.numeric(Xval), 1)
+  se_val <- round(sqrt(attr(Xval, "var")), 1) #I feel like there is a simpler way to extract SE,
+  #but couldn't figure it out so just pulling it manually
+  
+  #combine mean & SE into one column
+  mean_se_combined <- paste(mean_val, " (", se_val, ")", sep = "")
+  
+  #create a character list (to store the mean + SE values together)
+  year_values <- list()
+  year_values[[paste("Year", year)]] <- mean_se_combined
+  
+  return(year_values)
+}
+#modified meaniebobeanies to include a sex parameter
+meaniebobeaniesage <- function(var_list, dataset, age) {
+  results <- data.frame()
+  for (var in var_list) {
+    combined <- numeric()
+    for (year in 1:11) {
+      year_values <- meaniesage(var, year, dataset, age)
+      combined <- c(combined, year_values)
+    }
+    trans <- data.frame(t(combined))
+    results <- rbind(results, trans)
+  }
+  return(results)
+}
+
+
+
+var_list <- c("MeatDays", "avgMeatokaj", "gperokajMeat")
+summary(svyglm(MeatDays ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = log), design = dat.design))
+
+meaniebobeaniesage(var_list, dat, "1")
+
+pintage <- function(variable, dat.design) {
+  form_var <- as.formula(paste(variable, "~ SurveyYear + AgeG + SurveyYear * AgeG"))
+  
+  #if variable ends with 'Days' or 'okaj', run Poisson model, if not, run glm model
+  if (grepl("Days$", variable) || grepl("okaj$", variable)) {
+    print(paste("Running Poisson model for:", variable))
+    model <- svyglm(form_var, family = poisson(link = "log"), design = dat.design)
+  } else {
+    print(paste("Running Linear model for:", variable))
+    model <- svyglm(form_var, design = dat.design)
+  }
+  
+  #extract p-value for <18-40 (ref)
+  modsum <- summary(model)
+  p_1840 <- modsum$coefficients["SurveyYear", "Pr(>|t|)"]
+  p_men_women_diff <- modsum$coefficients["SurveyYear:SexF", "Pr(>|t|)"]
+  
+  #extract coefficients and covariance matrix (to calculate B1 + B3)
+  coefs <- coef(model)
+  cov_matrix <- vcov(model)
+  
+  #calculate effect, variance, and SE for change in women (baseline to Y11)
+  effect_women <- coefs["SurveyYear"] + coefs["SurveyYear:SexF"]
+  var_women <- cov_matrix["SurveyYear", "SurveyYear"] + 
+    cov_matrix["SurveyYear:SexF", "SurveyYear:SexF"] + 
+    2 * cov_matrix["SurveyYear", "SurveyYear:SexF"]
+  se_women <- sqrt(var_women)
+  
+  #calculate t-value and p-value for change in women
+  t_value <- effect_women / se_women
+  p_women <- 2 * (1 - pt(abs(t_value), df = df.residual(model)))
+  
+  #combine B1, B1+B3, & B3 into a one-row data frame (to merge with mean estimations)
+  peezies <- data.frame(Men_P = p_men, Women_P = p_women, Men_Women_Pint = p_men_women_diff)
+  
+  #round - got weird having 3 columns instead of 1, so had to implement this wee loop
+  for (col in colnames(peezies)) {
+    peezies[[col]] <- roundies(peezies[[col]])
+  }
+  
+  return(peezies)
+}
+
+
 
 #AGE
 exp_interaction_CI_age <- function(response_var, design) {
