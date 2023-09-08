@@ -93,7 +93,7 @@ demographic <- function(dataset, group_var, results_df) {
     group_by(!!sym(group_var)) %>%
     summarise(pct = survey_mean(na.rm = TRUE)) %>%
     mutate(pct = round(100 * pct, 1)) %>%
-    select(-pct_se) %>% #remove SE row (not needed for demographic analysis)
+    dplyr::select(-pct_se) %>% #remove SE row (not needed for demographic analysis)
     rename(characteristic = !!sym(group_var))
   
   #merge counts & percentages
@@ -132,6 +132,7 @@ results_eqv <- results_eqv %>% arrange(match(characteristic, ordered_levels_eqv)
 #combine three result data frames
 final_results <- rbind(results_ageg, results_sex, results_eqv)
 table1 <- final_results
+colnames(table1) <- c("Characteristic", "2008/09 - 2018/19", "Survey-weighted %")
 rm(final_results, results_ageg, results_sex, results_eqv,
    ordered_levels_ageg, ordered_levels_sex, ordered_levels_eqv,
    demographic)
@@ -163,7 +164,7 @@ demo_yearby <- function(dataset, group_var, results_df) {
         group_by(!!sym(group_var)) %>%
         summarise(pct = survey_mean(na.rm = TRUE)) %>%
         mutate(pct = round(100 * pct, 1)) %>% 
-        select(-pct_se) %>% #remove SE row (not needed for demographic analysis)
+        dplyr::select(-pct_se) %>% #remove SE row (not needed for demographic analysis)
         rename(characteristic = !!sym(group_var))
       
       colname1 <- paste0("Unweighted_Count_Year_", year)
@@ -482,13 +483,6 @@ rm(ListToFeed)
 
 
 
-
-
-
-
-
-
-
 #modified meanies to include an age parameter
 meaniesage <- function(Xvar, year, dataset, age) {
   dat_subset <- dataset %>% filter(SurveyYear == year & AgeG == age)
@@ -518,7 +512,7 @@ meaniesage <- function(Xvar, year, dataset, age) {
   
   return(year_values)
 }
-#modified meaniebobeanies to include a sex parameter
+#modified meaniebobeanies to include a age parameter
 meaniebobeaniesage <- function(var_list, dataset, age) {
   results <- data.frame()
   for (var in var_list) {
@@ -532,17 +526,8 @@ meaniebobeaniesage <- function(var_list, dataset, age) {
   }
   return(results)
 }
-
-
-
-var_list <- c("MeatDays", "avgMeatokaj", "gperokajMeat")
-summary(svyglm(MeatDays ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = log), design = dat.design))
-
-meaniebobeaniesage(var_list, dat, "1")
-
 pintage <- function(variable, dat.design) {
   form_var <- as.formula(paste(variable, "~ SurveyYear + AgeG + SurveyYear * AgeG"))
-  
   #if variable ends with 'Days' or 'okaj', run Poisson model, if not, run glm model
   if (grepl("Days$", variable) || grepl("okaj$", variable)) {
     print(paste("Running Poisson model for:", variable))
@@ -551,363 +536,340 @@ pintage <- function(variable, dat.design) {
     print(paste("Running Linear model for:", variable))
     model <- svyglm(form_var, design = dat.design)
   }
-  
   #extract p-value for <18-40 (ref)
   modsum <- summary(model)
-  p_1840 <- modsum$coefficients["SurveyYear", "Pr(>|t|)"]
-  p_men_women_diff <- modsum$coefficients["SurveyYear:SexF", "Pr(>|t|)"]
-  
-  #extract coefficients and covariance matrix (to calculate B1 + B3)
+  p_18 <- modsum$coefficients["SurveyYear", "Pr(>|t|)"]
+  p_18_10diff <- modsum$coefficients["SurveyYear:AgeG1", "Pr(>|t|)"]
+  p_18_11diff <- modsum$coefficients["SurveyYear:AgeG2", "Pr(>|t|)"]
+  p_18_41diff <- modsum$coefficients["SurveyYear:AgeG4", "Pr(>|t|)"]
+  p_18_60diff <- modsum$coefficients["SurveyYear:AgeG5", "Pr(>|t|)"]
+  #extract coefficients and covariance matrix (to calculate pvals for )
   coefs <- coef(model)
   cov_matrix <- vcov(model)
   
-  #calculate effect, variance, and SE for change in women (baseline to Y11)
-  effect_women <- coefs["SurveyYear"] + coefs["SurveyYear:SexF"]
-  var_women <- cov_matrix["SurveyYear", "SurveyYear"] + 
-    cov_matrix["SurveyYear:SexF", "SurveyYear:SexF"] + 
-    2 * cov_matrix["SurveyYear", "SurveyYear:SexF"]
-  se_women <- sqrt(var_women)
+  age_groups <- c("AgeG1", "AgeG2", "AgeG4", "AgeG5")
   
-  #calculate t-value and p-value for change in women
-  t_value <- effect_women / se_women
-  p_women <- 2 * (1 - pt(abs(t_value), df = df.residual(model)))
+  p_age_list <- list()
   
-  #combine B1, B1+B3, & B3 into a one-row data frame (to merge with mean estimations)
-  peezies <- data.frame(Men_P = p_men, Women_P = p_women, Men_Women_Pint = p_men_women_diff)
+  for (age_group in age_groups) {
+    effect_age <- coefs["SurveyYear"] + coefs[paste0("SurveyYear:", age_group)]
+    var_age <- cov_matrix["SurveyYear", "SurveyYear"] + 
+      cov_matrix[paste0("SurveyYear:", age_group), paste0("SurveyYear:", age_group)] + 
+      2 * cov_matrix["SurveyYear", paste0("SurveyYear:", age_group)]
+    se_age <- sqrt(var_age)
+    t_value <- effect_age / se_age
+    p_ageX <- 2 * (1 - pt(abs(t_value), df = df.residual(model)))
+    p_age_list[[age_group]] <- p_ageX
+  }
   
-  #round - got weird having 3 columns instead of 1, so had to implement this wee loop
+  peezies <- data.frame(p_18 = p_18, p_18_10diff = p_18_10diff, p_18_11diff = p_18_11diff,
+                        p_18_41diff = p_18_41diff, p_18_60diff = p_18_60diff,
+                        p_10 = p_age_list$AgeG1, p_11 = p_age_list$AgeG2,
+                        p_41 = p_age_list$AgeG4, p_60 = p_age_list$AgeG5)
+  
   for (col in colnames(peezies)) {
     peezies[[col]] <- roundies(peezies[[col]])
   }
   
   return(peezies)
 }
+runage <- function(analysis) {
+  
+  options(survey.lonely.psu="adjust") #something wrong with age group 5 PSUs, idk but this fixed it i think haha
+  
+  X <- list()
+  
+  age_groups <- list("3", "1", "2", "4", "5")
+  pval_cols <- c("p_18", "p_10", "p_11", "p_41", "p_60")
+  pval_diffs <- c(NULL, "p_18_10diff", "p_18_11diff", "p_18_41diff", "p_18_60diff")
+  
+  for (i in seq_along(age_groups)) {
+    age_group <- age_groups[[i]]
 
-
-
-#AGE
-exp_interaction_CI_age <- function(response_var, design) {
-  model_formula <- as.formula(paste(response_var, "~ SurveyYear + AgeG + SurveyYear * AgeG"))
-  model <- svyglm(model_formula, family = poisson(link = "log"), design = design)
-  model_summary <- summary(model)
-  betas <- coef(model)
-  se <- coef(model_summary)[, "Std. Error"]
+    X_temp <- meaniebobeaniesage(ListToFeed, dat, age_group) #add means
+    
+    names(X_temp)[names(X_temp) == "Year.1"] <- paste0("Year.1_age", age_group) #add age group to col 1
+    
+    pvec <- character()
+    
+    for (var in ListToFeed) {#Get p-values and p-interaction values
+      pval <- pintage(var, dat.design)[[pval_cols[i]]]
+      pvec <- c(pvec, pval)
+    }
+    
+    colname <- paste0("pval", sub("^3$", "18", age_group))
+    X_temp[[colname]] <- pvec
+    
+    colnames(X_temp)[-1] <- paste0(colnames(X_temp)[-1], "_age", age_group) #rename columns
+    
+    X[[age_group]] <- X_temp
+    
+    
+    if (!is.null(pval_diffs[i]) && !is.na(pval_diffs[i])) {
+      pvec_diff <- character()
+      for (var in ListToFeed) {
+        pval_diff <- pintage(var, dat.design)[[pval_diffs[i]]]
+        pvec_diff <- c(pvec_diff, pval_diff)
+      }
+      
+      #if pvec_diff is empty, assign NA to the column (idk, this just helped it run)
+      if (length(pvec_diff) == 0) {
+        pvec_diff <- rep(NA, nrow(X[[age_group]]))
+      }
+      
+      X[[age_group]][[pval_diffs[i]]] <- pvec_diff
+    }
+  }
+  #combine 
+  result <- Reduce(function(x, y) cbind(x, y), X)
+  rownames(result) <- ListToFeed
+  result <- rownames_to_column(result, var = "Meat Type")
+  colnames(result) <- gsub("\\.", "_", colnames(result))
   
-  # combinations of coefficients
-  b_combinations <- c(
-    betas["(Intercept)"],
-    betas["(Intercept)"] + betas["SurveyYear11"],
-    betas["(Intercept)"] + betas["AgeG1"],
-    betas["(Intercept)"] + betas["AgeG1"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG1"],
-    betas["(Intercept)"] + betas["AgeG2"],
-    betas["(Intercept)"] + betas["AgeG2"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG2"],
-    betas["(Intercept)"] + betas["AgeG4"],
-    betas["(Intercept)"] + betas["AgeG4"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG4"],
-    betas["(Intercept)"] + betas["AgeG5"],
-    betas["(Intercept)"] + betas["AgeG5"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG5"]
-  )
+  #define column order (couldn't think of an 'automated' way to do this, so i just listed it in the order i wanted haha)
+  ordered_cols <- c("Meat Type", 
+                    "Year_1_age3",  "Year_2_age3",  "Year_3_age3",  "Year_4_age3",  "Year_5_age3",  "Year_6_age3", 
+                    "Year_7_age3",  "Year_8_age3",  "Year_9_age3",  "Year_10_age3", "Year_11_age3", "pval18_age3", 
+                    "Year_1_age1",  "Year_2_age1",  "Year_3_age1",  "Year_4_age1",  "Year_5_age1",  "Year_6_age1",  
+                    "Year_7_age1",  "Year_8_age1",  "Year_9_age1",  "Year_10_age1", "Year_11_age1", "pval1_age1", "p_18_10diff", 
+                    "Year_1_age2",  "Year_2_age2",  "Year_3_age2",  "Year_4_age2",  "Year_5_age2",  "Year_6_age2",  
+                    "Year_7_age2",  "Year_8_age2",  "Year_9_age2",  "Year_10_age2", "Year_11_age2", "pval2_age2", "p_18_11diff",
+                    "Year_1_age4",  "Year_2_age4",  "Year_3_age4",  "Year_4_age4",  "Year_5_age4",  "Year_6_age4",  
+                    "Year_7_age4",  "Year_8_age4",  "Year_9_age4",  "Year_10_age4", "Year_11_age4", "pval4_age4", "p_18_41diff",
+                    "Year_1_age5",  "Year_2_age5",  "Year_3_age5",  "Year_4_age5",  "Year_5_age5",  "Year_6_age5",  
+                    "Year_7_age5",  "Year_8_age5",  "Year_9_age5",  "Year_10_age5", "Year_11_age5", "pval5_age5", "p_18_60diff")
   
-  # exponentiated coefficients
-  exp_coef <- round(exp(b_combinations), 1)
-  
-  # standard errors for combinations
-  se_combinations <- c(
-    se["(Intercept)"],
-    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
-    se["AgeG1"],
-    sqrt(se["AgeG1"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG1"]^2),
-    se["AgeG2"],
-    sqrt(se["AgeG2"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG2"]^2),
-    se["AgeG4"],
-    sqrt(se["AgeG4"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG4"]^2),
-    se["AgeG5"],
-    sqrt(se["AgeG5"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG5"]^2)
-  )
-  
-  # CI for combinations
-  lower_bound <- round(exp_coef - 1.96 * se_combinations, 1)
-  upper_bound <- round(exp_coef + 1.96 * se_combinations, 1)
-  
-  # differences of exponentiated coefficients for each pair of groups (Y1 - Y11)
-  diff_coefs <- exp_coef[seq(1, length(exp_coef), 2)] - exp_coef[seq(2, length(exp_coef), 2)]
-  
-  # standard errors for the differences
-  se_diff <- sqrt(se_combinations[seq(1, length(se_combinations), 2)]^2 + se_combinations[seq(2, length(se_combinations), 2)]^2)
-  
-  # CI for the differences
-  diff_lower_bound <- round(diff_coefs - 1.96 * se_diff, 1)
-  diff_upper_bound <- round(diff_coefs + 1.96 * se_diff, 1)
-  
-  # data frame to present the results
-  result_table <- rbind(
-    data.frame(
-      Group = c("18-40_Y1", "18-40_Y11", "<10_Y1", "<10_Y11", "11-17_Y1", "11-17_Y11", "41-59_Y1", "41-59_Y11", ">=60_Y1", ">=60_Y11"),
-      Beta = round(exp_coef, 1),
-      Lower = round(lower_bound, 1),
-      Upper = round(upper_bound, 1)
-    ),
-    data.frame(
-      Group = c("Diff_18-40", "Diff_<10", "Diff_11-17", "Diff_41-59", "Diff_>=60"),
-      Beta = round(diff_coefs, 1),
-      Lower = round(diff_lower_bound, 1),
-      Upper = round(diff_upper_bound, 1)
-    )
-  )
-  return(result_table)
+  result <- result[, ordered_cols]
+  return(result)
 }
-glm_interaction_CI_age <- function(response_var, design) {
-  model_formula <- as.formula(paste(response_var, "~ SurveyYear + AgeG + SurveyYear * AgeG"))
-  model <- svyglm(model_formula, design = design)
-  model_summary <- summary(model)
-  betas <- coef(model)
-  se <- coef(model_summary)[, "Std. Error"]
-  #combinations of coefficients
-  b_combinations <- c(
-    betas["(Intercept)"],
-    betas["(Intercept)"] + betas["SurveyYear11"],
-    betas["(Intercept)"] + betas["AgeG1"],
-    betas["(Intercept)"] + betas["AgeG1"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG1"],
-    betas["(Intercept)"] + betas["AgeG2"],
-    betas["(Intercept)"] + betas["AgeG2"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG2"],
-    betas["(Intercept)"] + betas["AgeG4"],
-    betas["(Intercept)"] + betas["AgeG4"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG4"],
-    betas["(Intercept)"] + betas["AgeG5"],
-    betas["(Intercept)"] + betas["AgeG5"] + betas["SurveyYear11"] + betas["SurveyYear11:AgeG5"]
-  )
-  #standard errors for combinations
-  se_combinations <- c(
-    se["(Intercept)"],
-    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
-    se["AgeG1"],
-    sqrt(se["AgeG1"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG1"]^2),
-    se["AgeG2"],
-    sqrt(se["AgeG2"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG2"]^2),
-    se["AgeG4"],
-    sqrt(se["AgeG4"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG4"]^2),
-    se["AgeG5"],
-    sqrt(se["AgeG5"]^2 + se["SurveyYear11"]^2 + se["SurveyYear11:AgeG5"]^2)
-  )
-  # CI for combinations
-  lower_bound <- round(b_combinations - 1.96 * se_combinations, 1)
-  upper_bound <- round(b_combinations + 1.96 * se_combinations, 1)
+
+ListToFeed <- c("MeatDays", "avgMeatokaj", "gperokajMeat",
+                "ProcessedDays", "avgProcessedokaj", "gperokajProcessed",
+                "RedDays", "avgRedokaj", "gperokajRed",
+                "WhiteDays", "avgWhiteokaj", "gperokajWhite")
+sitable4b <- runage("sitable4b")
+rm(ListToFeed)
+
+
+
+
+
+
+
+
+
+
+
+#modified meanies to include an eqv parameter
+meanieseqv <- function(Xvar, year, dataset, schmoney) {
+  dat_subset <- dataset %>% filter(SurveyYear == year & eqv == schmoney)
+  #replace Xvar with variable name
+  #(idk why i have to do this, but it wasn't working without it and it wouldn't
+  #let me just add the tilda to the beginning of Xvar for some reason...)
+  form_var <- as.formula(paste("~", Xvar))
   
-  #difference between groups
-  diff_coefs <- b_combinations[seq(1, length(b_combinations), 2)] - b_combinations[seq(2, length(b_combinations), 2)]
+  #set survey design
+  survey_design <- dat_subset %>%
+    as_survey_design(ids = area, weights = wti, strata = astrata5)
   
-  #standard error of the difference
-  se_diff <- sqrt(se_combinations[seq(1, length(se_combinations), 2)]^2 + se_combinations[seq(2, length(se_combinations), 2)]^2)
+  #calculate the survey-weighted mean and SE
+  Xval <- svymean(form_var, design = survey_design, na.rm = TRUE)
   
-  #confidence interval for the difference
-  ci_diff_lower <- round(diff_coefs - 1.96 * se_diff, 1)
-  ci_diff_upper <- round(diff_coefs + 1.96 * se_diff, 1)
+  #extract mean and SE, round to one dp
+  mean_val <- round(as.numeric(Xval), 1)
+  se_val <- round(sqrt(attr(Xval, "var")), 1) #I feel like there is a simpler way to extract SE,
+  #but couldn't figure it out so just pulling it manually
   
-  #data frame to present the results
-  result_table <- rbind(
-    data.frame(
-      Group = c("18-40_Y1", "18-40_Y11", "<10_Y1", "<10_Y11", "11-17_Y1", "11-17_Y11", "41-59_Y1", "41-59_Y11", ">=60_Y1", ">=60_Y11"),
-      Beta = round(b_combinations, 1),
-      Lower = round(lower_bound, 1),
-      Upper = round(upper_bound, 1),
-      stringsAsFactors = FALSE
-    ),
-    data.frame(
-      Group = c("Diff_18-40", "Diff_<10", "Diff_11-17", "Diff_41-59", "Diff_>=60"),
-      Beta = round(diff_coefs, 1),
-      Lower = round(ci_diff_lower, 1),
-      Upper = round(ci_diff_upper, 1),
-      stringsAsFactors = FALSE
-    )
-  )
-  return(result_table)
+  #combine mean & SE into one column
+  mean_se_combined <- paste(mean_val, " (", se_val, ")", sep = "")
+  
+  #create a character list (to store the mean + SE values together)
+  year_values <- list()
+  year_values[[paste("Year", year)]] <- mean_se_combined
+  
+  return(year_values)
 }
-#days
-exp_interaction_CI_age(response_var = "MeatDays", design = dat.design)
-exp_interaction_CI_age(response_var = "ProcessedDays", design = dat.design)
-exp_interaction_CI_age(response_var = "RedDays", design = dat.design)
-exp_interaction_CI_age(response_var = "WhiteDays", design = dat.design)
-exp_interaction_CI_age(response_var = "NoMeatDays", design = dat.design)
-#occasions
-exp_interaction_CI_age(response_var = "avgMeatokaj", design = dat.design)
-exp_interaction_CI_age(response_var = "avgProcessedokaj", design = dat.design)
-exp_interaction_CI_age(response_var = "avgRedokaj", design = dat.design)
-exp_interaction_CI_age(response_var = "avgWhiteokaj", design = dat.design)
-#portion size
-glm_interaction_CI_age(response_var = "gperokajMeat", design = dat.design)
-glm_interaction_CI_age(response_var = "gperokajProcessed", design = dat.design)
-glm_interaction_CI_age(response_var = "gperokajRed", design = dat.design)
-glm_interaction_CI_age(response_var = "gperokajWhite", design = dat.design)
-
-#p values (use only after setting SurveyYear to numeric)
-summary(svyglm(MeatDays ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
-summary(svyglm(ProcessedDays ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
-summary(svyglm(RedDays ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
-summary(svyglm(WhiteDays ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
-summary(svyglm(NoMeatDays ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
-
-summary(svyglm(avgMeatokaj ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
-summary(svyglm(avgProcessedokaj ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
-summary(svyglm(avgRedokaj ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
-summary(svyglm(avgWhiteokaj ~ SurveyYear + AgeG + SurveyYear * AgeG, family = poisson(link = "log"), dat.design))
-
-summary(svyglm(gperokajMeat ~ SurveyYear + AgeG + SurveyYear * AgeG, dat.design))
-summary(svyglm(gperokajProcessed ~ SurveyYear + AgeG + SurveyYear * AgeG, dat.design))
-summary(svyglm(gperokajRed ~ SurveyYear + AgeG + SurveyYear * AgeG, dat.design))
-summary(svyglm(gperokajWhite ~ SurveyYear + AgeG + SurveyYear * AgeG, dat.design))
-
-#EQV
-exp_interaction_CI_eqv <- function(response_var, design) {
-  model_formula <- as.formula(paste(response_var, "~ SurveyYear + eqv + SurveyYear * eqv"))
-  model <- svyglm(model_formula, family = poisson(link = "log"), design = design)
-  model_summary <- summary(model)
-  betas <- coef(model)
-  se <- coef(model_summary)[, "Std. Error"]
-  
-  # combinations of coefficients
-  b_combinations <- c(
-    betas["(Intercept)"],
-    betas["(Intercept)"] + betas["eqv2"],
-    betas["(Intercept)"] + betas["eqv3"],
-    betas["(Intercept)"] + betas["SurveyYear11"],
-    betas["(Intercept)"] + betas["SurveyYear11"] + betas["eqv2"] + betas["SurveyYear11:eqv2"],
-    betas["(Intercept)"] + betas["SurveyYear11"] + betas["eqv3"] + betas["SurveyYear11:eqv3"]
-  )
-  
-  # exponentiated coefficients
-  exp_coef <- round(exp(b_combinations), 1)
-  
-  # standard errors for combinations
-  se_combinations <- c(
-    se["(Intercept)"],
-    sqrt(se["(Intercept)"]^2 + se["eqv2"]^2),
-    sqrt(se["(Intercept)"]^2 + se["eqv3"]^2),
-    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
-    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2 + se["eqv2"]^2 + se["SurveyYear11:eqv2"]^2),
-    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2 + se["eqv3"]^2 + se["SurveyYear11:eqv3"]^2)
-  )
-  
-  # CI for combinations
-  lower_bound <- round(exp_coef - 1.96 * se_combinations, 1)
-  upper_bound <- round(exp_coef + 1.96 * se_combinations, 1)
-  
-  # differences of exponentiated coefficients for each pair of groups (Y1 - Y11)
-  diff_coefs <- exp_coef[c(1, 2, 3)] - exp_coef[c(4, 5, 6)]
-  
-  # standard errors for the differences
-  se_diff <- sqrt(se_combinations[c(1, 2, 3)]^2 + se_combinations[c(4, 5, 6)]^2)
-  
-  # CI for the differences
-  diff_lower_bound <- round(diff_coefs - 1.96 * se_diff, 1)
-  diff_upper_bound <- round(diff_coefs + 1.96 * se_diff, 1)
-  
-  # data frame to present the results
-  result_table <- rbind(
-    data.frame(
-      Group = c("eqv1_Y1", "eqv2_Y1", "eqv3_Y1", "eqv1_Y11", "eqv2_Y11", "eqv3_Y11"),
-      Beta = round(exp_coef, 1),
-      Lower = round(lower_bound, 1),
-      Upper = round(upper_bound, 1)
-    ),
-    data.frame(
-      Group = c("Diff_eqv1", "Diff_eqv2", "Diff_eqv3"),
-      Beta = round(diff_coefs, 1),
-      Lower = round(diff_lower_bound, 1),
-      Upper = round(diff_upper_bound, 1)
-    )
-  )
-  return(result_table)
+#modified meaniebobeanies to include an eqv parameter
+meaniebobeanieseqv <- function(var_list, dataset, schmoney) {
+  results <- data.frame()
+  for (var in var_list) {
+    combined <- numeric()
+    for (year in 1:11) {
+      year_values <- meanieseqv(var, year, dataset, schmoney)
+      combined <- c(combined, year_values)
+    }
+    trans <- data.frame(t(combined))
+    results <- rbind(results, trans)
+  }
+  return(results)
 }
-glm_interaction_CI_eqv <- function(response_var, design) {
-  model_formula <- as.formula(paste(response_var, "~ SurveyYear + eqv + SurveyYear * eqv"))
-  model <- svyglm(model_formula, design = design)
-  model_summary <- summary(model)
-  betas <- coef(model)
-  se <- coef(model_summary)[, "Std. Error"]
+
+pinteqv <- function(variable, dat.design) {
+  form_var <- as.formula(paste(variable, "~ SurveyYear + eqv + SurveyYear * eqv"))
+  #if variable ends with 'Days' or 'okaj', run Poisson model, if not, run glm model
+  if (grepl("Days$", variable) || grepl("okaj$", variable)) {
+    print(paste("Running Poisson model for:", variable))
+    model <- svyglm(form_var, family = poisson(link = "log"), design = dat.design)
+  } else {
+    print(paste("Running Linear model for:", variable))
+    model <- svyglm(form_var, design = dat.design)
+  }
+  #extract p-value for 1st tertile (lowest) & interactiosn with other tertiles
+  modsum <- summary(model)
+  p_1 <- modsum$coefficients["SurveyYear", "Pr(>|t|)"]
+  p_1_2diff <- modsum$coefficients["SurveyYear:eqv2", "Pr(>|t|)"]
+  p_1_3diff <- modsum$coefficients["SurveyYear:eqv3", "Pr(>|t|)"]
+  #extract coefficients and covariance matrix (to calculate pvals for missing pvalues from summary)
+  coefs <- coef(model)
+  cov_matrix <- vcov(model)
   
-  # combinations of coefficients
-  b_combinations <- c(
-    betas["(Intercept)"],
-    betas["(Intercept)"] + betas["eqv2"],
-    betas["(Intercept)"] + betas["eqv3"],
-    betas["(Intercept)"] + betas["SurveyYear11"],
-    betas["(Intercept)"] + betas["SurveyYear11"] + betas["eqv2"] + betas["SurveyYear11:eqv2"],
-    betas["(Intercept)"] + betas["SurveyYear11"] + betas["eqv3"] + betas["SurveyYear11:eqv3"]
-  )
+  eqv_groups <- c("eqv2", "eqv3")
   
-  # standard errors for combinations
-  se_combinations <- c(
-    se["(Intercept)"],
-    sqrt(se["(Intercept)"]^2 + se["eqv2"]^2),
-    sqrt(se["(Intercept)"]^2 + se["eqv3"]^2),
-    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2),
-    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2 + se["eqv2"]^2 + se["SurveyYear11:eqv2"]^2),
-    sqrt(se["(Intercept)"]^2 + se["SurveyYear11"]^2 + se["eqv3"]^2 + se["SurveyYear11:eqv3"]^2)
-  )
+  p_eqv_list <- list()
   
-  # CI for combinations
-  lower_bound <- round(b_combinations - 1.96 * se_combinations, 1)
-  upper_bound <- round(b_combinations + 1.96 * se_combinations, 1)
+  for (eqv_group in eqv_groups) {
+    effect_eqv <- coefs["SurveyYear"] + coefs[paste0("SurveyYear:", eqv_group)]
+    var_eqv <- cov_matrix["SurveyYear", "SurveyYear"] + 
+      cov_matrix[paste0("SurveyYear:", eqv_group), paste0("SurveyYear:", eqv_group)] + 
+      2 * cov_matrix["SurveyYear", paste0("SurveyYear:", eqv_group)]
+    se_eqv <- sqrt(var_eqv)
+    t_value <- effect_eqv / se_eqv
+    p_eqvX <- 2 * (1 - pt(abs(t_value), df = df.residual(model)))
+    p_eqv_list[[eqv_group]] <- p_eqvX
+  }
   
-  # differences of coefficients for each pair of groups (Y1 - Y11)
-  diff_coefs <- b_combinations[c(1, 2, 3)] - b_combinations[c(4, 5, 6)]
+  peezies <- data.frame(p_1 = p_1, p_1_2diff = p_1_2diff, p_1_3diff = p_1_3diff,
+                        p_2 = p_eqv_list$eqv2, p_3 = p_eqv_list$eqv3)
   
-  # standard errors for the differences
-  se_diff <- sqrt(se_combinations[c(1, 2, 3)]^2 + se_combinations[c(4, 5, 6)]^2)
+  for (col in colnames(peezies)) {
+    peezies[[col]] <- roundies(peezies[[col]])
+  }
   
-  # CI for the differences
-  diff_lower_bound <- round(diff_coefs - 1.96 * se_diff, 1)
-  diff_upper_bound <- round(diff_coefs + 1.96 * se_diff, 1)
-  
-  # data frame to present the results
-  result_table <- rbind(
-    data.frame(
-      Group = c("eqv1_Y1", "eqv2_Y1", "eqv3_Y1", "eqv1_Y11", "eqv2_Y11", "eqv3_Y11"),
-      Beta = round(b_combinations, 1),
-      Lower = round(lower_bound, 1),
-      Upper = round(upper_bound, 1)
-    ),
-    data.frame(
-      Group = c("Diff_eqv1", "Diff_eqv2", "Diff_eqv3"),
-      Beta = round(diff_coefs, 1),
-      Lower = round(diff_lower_bound, 1),
-      Upper = round(diff_upper_bound, 1)
-    )
-  )
-  
-  return(result_table)
+  return(peezies)
 }
-#days
-exp_interaction_CI_eqv(response_var = "MeatDays", design = dat.design)
-exp_interaction_CI_eqv(response_var = "ProcessedDays", design = dat.design)
-exp_interaction_CI_eqv(response_var = "RedDays", design = dat.design)
-exp_interaction_CI_eqv(response_var = "WhiteDays", design = dat.design)
-exp_interaction_CI_eqv(response_var = "NoMeatDays", design = dat.design)
-#occasions
-exp_interaction_CI_eqv(response_var = "avgMeatokaj", design = dat.design)
-exp_interaction_CI_eqv(response_var = "avgProcessedokaj", design = dat.design)
-exp_interaction_CI_eqv(response_var = "avgRedokaj", design = dat.design)
-exp_interaction_CI_eqv(response_var = "avgWhiteokaj", design = dat.design)
-#portion size
-glm_interaction_CI_eqv(response_var = "gperokajMeat", design = dat.design)
-glm_interaction_CI_eqv(response_var = "gperokajProcessed", design = dat.design)
-glm_interaction_CI_eqv(response_var = "gperokajRed", design = dat.design)
-glm_interaction_CI_eqv(response_var = "gperokajWhite", design = dat.design)
+runeqv <- function(analysis) {
+  
+  X <- list()
+  
+  eqv_groups <- list("1", "2", "3")
+  pval_cols <- c("p_1", "p_2", "p_3")
+  pval_diffs <- c(NULL, "p_1_2diff", "p_1_3diff")
+  
+  for (i in seq_along(eqv_groups)) {
+    eqv_group <- eqv_groups[[i]]
+    
+    X_temp <- meaniebobeanieseqv(ListToFeed, dat, eqv_group) #add means
+    
+    names(X_temp)[names(X_temp) == "Year.1"] <- paste0("Year.1_eqv", eqv_group) #add eqv group to col 1
+    
+    pvec <- character()
+    
+    for (var in ListToFeed) {#Get p-values and p-interaction values
+      pval <- pinteqv(var, dat.design)[[pval_cols[i]]]
+      pvec <- c(pvec, pval)
+    }
+    
+    colname <- paste0("pval", sub("^1$", "1", eqv_group))
+    X_temp[[colname]] <- pvec
+    
+    colnames(X_temp)[-1] <- paste0(colnames(X_temp)[-1], "_eqv", eqv_group) #rename columns
+    
+    X[[eqv_group]] <- X_temp
+    
+    
+    if (!is.null(pval_diffs[i]) && !is.na(pval_diffs[i])) {
+      pvec_diff <- character()
+      for (var in ListToFeed) {
+        pval_diff <- pinteqv(var, dat.design)[[pval_diffs[i]]]
+        pvec_diff <- c(pvec_diff, pval_diff)
+      }
+      
+      #if pvec_diff is empty, assign NA to the column (idk, this just helped it run)
+      if (length(pvec_diff) == 0) {
+        pvec_diff <- rep(NA, nrow(X[[eqv_group]]))
+      }
+      
+      X[[eqv_group]][[pval_diffs[i]]] <- pvec_diff
+    }
+  }
+  #combine 
+  result <- Reduce(function(x, y) cbind(x, y), X)
+  rownames(result) <- ListToFeed
+  result <- rownames_to_column(result, var = "Meat Type")
+  colnames(result) <- gsub("\\.", "_", colnames(result))
+  #define column order (couldn't think of an 'automated' way to do this, so i just listed it in the order i wanted haha)
+  ordered_cols <- c("Meat Type", 
+                    "Year_1_eqv1",  "Year_2_eqv1",  "Year_3_eqv1",  "Year_4_eqv1",  "Year_5_eqv1",  "Year_6_eqv1", 
+                    "Year_7_eqv1",  "Year_8_eqv1",  "Year_9_eqv1",  "Year_10_eqv1", "Year_11_eqv1", "pval1_eqv1", 
+                    "Year_1_eqv2",  "Year_2_eqv2",  "Year_3_eqv2",  "Year_4_eqv2",  "Year_5_eqv2",  "Year_6_eqv2",  
+                    "Year_7_eqv2",  "Year_8_eqv2",  "Year_9_eqv2",  "Year_10_eqv2", "Year_11_eqv2", "pval2_eqv2", "p_1_2diff", 
+                    "Year_1_eqv3",  "Year_2_eqv3",  "Year_3_eqv3",  "Year_4_eqv3",  "Year_5_eqv3",  "Year_6_eqv3",  
+                    "Year_7_eqv3",  "Year_8_eqv3",  "Year_9_eqv3",  "Year_10_eqv3", "Year_11_eqv3", "pval3_eqv3", "p_1_3diff")
+  
+  result <- result[, ordered_cols]
+  return(result)
+}
 
-#p values (use only after setting SurveyYear to numeric)
-summary(svyglm(MeatDays ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
-summary(svyglm(ProcessedDays ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
-summary(svyglm(RedDays ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
-summary(svyglm(WhiteDays ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
-summary(svyglm(NoMeatDays ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
+ListToFeed <- c("MeatDays", "avgMeatokaj", "gperokajMeat",
+                "ProcessedDays", "avgProcessedokaj", "gperokajProcessed",
+                "RedDays", "avgRedokaj", "gperokajRed",
+                "WhiteDays", "avgWhiteokaj", "gperokajWhite")
+sitable4c <- runeqv("sitable4c")
+rm(ListToFeed, ordered_cols)
 
-summary(svyglm(avgMeatokaj ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
-summary(svyglm(avgProcessedokaj ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
-summary(svyglm(avgRedokaj ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
-summary(svyglm(avgWhiteokaj ~ SurveyYear + eqv + SurveyYear * eqv, family = poisson(link = "log"), dat.design))
 
-summary(svyglm(gperokajMeat ~ SurveyYear + eqv + SurveyYear * eqv, dat.design))
-summary(svyglm(gperokajProcessed ~ SurveyYear + eqv + SurveyYear * eqv, dat.design))
-summary(svyglm(gperokajRed ~ SurveyYear + eqv + SurveyYear * eqv, dat.design))
-summary(svyglm(gperokajWhite ~ SurveyYear + eqv + SurveyYear * eqv, dat.design))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #######################DECOMPOSITION ANALYSIS###############
 
