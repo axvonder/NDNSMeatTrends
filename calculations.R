@@ -11,6 +11,7 @@ library(MASS)
 library(purrr)
 library(tibble)
 library(gt)
+library(openxlsx)
 #set wd
 setwd("/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data")
 #upload datasets
@@ -656,10 +657,6 @@ rm(ListToFeed)
 
 
 
-
-
-
-
 #modified meanies to include an eqv parameter
 meanieseqv <- function(Xvar, year, dataset, schmoney) {
   dat_subset <- dataset %>% filter(SurveyYear == year & eqv == schmoney)
@@ -823,7 +820,18 @@ rm(ListToFeed, ordered_cols)
 
 
 
-
+########################EXPORT TABLES TO EXCEL#####################
+omegatable <- list("Table 1" = table1, "Table 2" = table2, 
+                   "SI Table 1" = sitable1, "SI Table 2" = sitable2, 
+                   "SI Table 3" = sitable3, "SI Table 4a" = sitable4a, 
+                   "SI Table 4b" = sitable4b, "SI Table 4c" = sitable4c)
+wb <- createWorkbook() #create excel workbook
+for (sheet_name in names(omegatable)) {
+  addWorksheet(wb, sheetName = sheet_name)
+  writeData(wb, sheet = sheet_name, x = omegatable[[sheet_name]])
+}
+filename <- "/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Results/omegatable.xlsx"
+saveWorkbook(wb, file = filename, overwrite = TRUE)
 
 
 
