@@ -240,7 +240,7 @@ transtrim <- trans[ , -which(names(trans) %in% c("FoodNumber", "FoodName", "Ener
                                                  "Cholesterolmg", "Saturatedfattyacidsg",
                                                  "CisMonounsaturatedfattyacidsg", "Cisn6fattyacidsg",
                                                  "Cisn3fattyacidsg", "Transfattyacidsg",
-                                                 "Fruitg", "FriedFruitg", "FruitJuiceg",
+                                                 "Fruitg", "DriedFruitg", "FruitJuiceg",
                                                  "SmoothieFruitg", "Tomatoesg", "TomatoPureeg",
                                                  "Brassicaceaeg", "YellowRedGreeng", "Beansg",
                                                  "Nutsg", "OtherVegg", "Beefg", "Lambg",

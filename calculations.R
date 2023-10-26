@@ -35,6 +35,10 @@ dat <- dat %>%
     Age >= 60 ~ 5,
     TRUE ~ 99
   ))
+#set eqv NAs to -99 for missing group
+dat$eqv <- ifelse(is.na(dat$eqv), -99, dat$eqv)
+#add categorical variable for adult yes/no
+dat$LifeStage <- ifelse(dat$Age >=18, "A", "C")
 #set reference group for age (18-40)
 dat$AgeG <- as.factor(dat$AgeG)
 dat$AgeG <- relevel(dat$AgeG, ref = 3)
@@ -55,18 +59,30 @@ rm(var, varnames)
 
 #set survey designs
 dat$SurveyYear <- as.numeric(dat$SurveyYear)
-#specify survey weighting structure for GLM
-dat$fpc <- 15655
+#change 2 cluster variables (area [PSU] and serialh [household] to factors)
+dat$area <- as.factor(dat$area)
+dat$serialh <- as.factor(dat$serialh)
+#specify survey weighting structure for GLM & Poisson (used for calculating P-values)
 dat.design <-
   svydesign(
-    id = ~area,
-    strata = ~astrata5,
+    id = ~serialh/area, #multi-level cluster of households and PSUs
+    strata = ~astrata5, #stratification by district
     data = dat,
-    weights = ~wti,
-    fpc = ~fpc
+    weights = ~wti, #NDNS-assigned survey weight
+    nest = TRUE
   )
 
-#####################TABLE 1 - demographic analysis (all years)#######################
+#specify survey weighting structure for cross-sectional analysis (weighted means by year)
+survey_design <- dat %>%
+  as_survey_design(ids = serialh/area, weights = wti, strata = astrata5)
+
+
+
+#####################TABLE 1 - demographic analysis #######################
+#rounding conditional statement (2 decimals for small numbers, 1 for large numbers)
+round_condish <- function(x) {
+  ifelse(x >= 100, round(x, 0), ifelse(x >= 10, round(x, 1), round(x, 2)))
+}
 #create empty data frames to hold results
 results_ageg <- data.frame(characteristic = unique(dat$AgeG))
 results_sex <- data.frame(characteristic = unique(dat$Sex))
@@ -75,12 +91,6 @@ results_eqv <- data.frame(characteristic = unique(dat$eqv))
 #function for demographic unweighted counts & percentages
 demographic <- function(dataset, group_var, results_df) {
   results <- results_df
-  
-  #define survey design
-  survey_design <- dataset %>%
-    as_survey_design(ids = area, #cluster ids
-                     weights = wti, #weight variable
-                     strata = astrata5) #sampling was stratified by district
   
   #unweighted counts
   unweighted_counts <- dataset %>%
@@ -93,7 +103,7 @@ demographic <- function(dataset, group_var, results_df) {
   weighted_percentages <- survey_design %>%
     group_by(!!sym(group_var)) %>%
     summarise(pct = survey_mean(na.rm = TRUE)) %>%
-    mutate(pct = round(100 * pct, 1)) %>%
+    mutate(pct = round_condish(100 * pct)) %>%
     dplyr::select(-pct_se) %>% #remove SE row (not needed for demographic analysis)
     rename(characteristic = !!sym(group_var))
   
@@ -124,7 +134,7 @@ results_eqv$characteristic <- case_when(
   results_eqv$characteristic == "1" ~ "Lowest tertile",
   results_eqv$characteristic == "2" ~ "Middle tertile",
   results_eqv$characteristic == "3" ~ "Highest tertile",
-  is.na(results_eqv$characteristic) ~ "Missing",
+  results_eqv$characteristic == "-99" ~ "Missing",
   TRUE ~ results_eqv$characteristic #leaves other values unchanged (this was messing up before)
 )
 ordered_levels_eqv <- c("Lowest tertile", "Middle tertile", "Highest tertile", "Missing")
@@ -151,10 +161,6 @@ demo_yearby <- function(dataset, group_var, results_df) {
   
   for (year in 1:11) {
     dat_subset <- dataset %>% filter(SurveyYear == year)
-    
-    if (nrow(dat_subset) > 0) {
-      survey_design <- dat_subset %>%
-        as_survey_design(ids = area, weights = wti, strata = astrata5)
       
       unweighted_counts <- dat_subset %>%
         group_by(!!sym(group_var)) %>%
@@ -164,7 +170,7 @@ demo_yearby <- function(dataset, group_var, results_df) {
       weighted_percentages <- survey_design %>%
         group_by(!!sym(group_var)) %>%
         summarise(pct = survey_mean(na.rm = TRUE)) %>%
-        mutate(pct = round(100 * pct, 1)) %>% 
+        mutate(pct = round_condish(100 * pct)) %>% 
         dplyr::select(-pct_se) %>% #remove SE row (not needed for demographic analysis)
         rename(characteristic = !!sym(group_var))
       
@@ -177,7 +183,6 @@ demo_yearby <- function(dataset, group_var, results_df) {
         left_join(weighted_percentages, by = "characteristic") %>%
         rename(!!colname2 := pct)
     }
-  }
   return(results)
 }
 
@@ -199,7 +204,7 @@ results_eqv$characteristic <- case_when(
   results_eqv$characteristic == "1" ~ "Lowest tertile",
   results_eqv$characteristic == "2" ~ "Middle tertile",
   results_eqv$characteristic == "3" ~ "Highest tertile",
-  is.na(results_eqv$characteristic) ~ "Missing",
+  results_eqv$characteristic == "-99" ~ "Missing",
   TRUE ~ results_eqv$characteristic #leaves other values unchanged (this was messing up before)
 )
 ordered_levels_eqv <- c("Lowest tertile", "Middle tertile", "Highest tertile", "Missing")
@@ -213,7 +218,6 @@ rm(final_results, results_ageg, results_sex, results_eqv,
    demo_yearby)
 
 #############################TABLE 2 - main analysis (also SI table 2) ###################
-
 #function to calculate mean and SE
 meanies <- function(Xvar, year, dataset) {
   #replace Xvar with variable name
@@ -226,14 +230,14 @@ meanies <- function(Xvar, year, dataset) {
   
   #set survey design
   survey_design <- dat_subset %>%
-    as_survey_design(ids = area, weights = wti, strata = astrata5)
+    as_survey_design(ids = serialh/area, weights = wti, strata = astrata5)
   
   #calculate the survey-weighted mean and SE
   Xval <- svymean(form_var, design = survey_design, na.rm = TRUE)
   
   #extract mean and SE, round to one dp
-  mean_val <- round(as.numeric(Xval), 1)
-  se_val <- round(sqrt(attr(Xval, "var")), 1) #I feel like there is a simpler way to extract SE,
+  mean_val <- round_condish(as.numeric(Xval))
+  se_val <- round_condish(sqrt(attr(Xval, "var"))) #I feel like there is a simpler way to extract SE,
   #but couldn't figure it out so just pulling it manually
   
   #combine mean & SE into one column
@@ -302,7 +306,7 @@ ptrend <- function(variable, dat.design) {
   return(peezies)
 }
 run <- function(analysis) {
-  X <- meaniebobeanies(ListToFeed, dat)
+  X <- meaniebobeanies(ListToFeed, dat) #specify the dataset feeding into the analysis
   #create vector to store p-values
   pvec <- character()
   #loop through each variable in ListToFeed
@@ -328,9 +332,6 @@ run("sitable2")
 table2 <- sitable2[, c("Meat Type", "Year 1", "Year 11", "P for trend")]
 rm(ListToFeed)
 
-#unweighted count of participants in each survey year (not including those who have <4 diary days)
-table(dat$SurveyYear[dat$DiaryDaysCompleted == 4])
-
 
 #########################SI TABLE 3 - STM ANALYSIS########################
 
@@ -338,6 +339,7 @@ ListToFeed <- c("BsumMeatg", "BsumProcessedg", "BsumRedg", "BsumWhiteg",
                 "LsumMeatg", "LsumProcessedg", "LsumRedg", "LsumWhiteg",
                 "DsumMeatg", "DsumProcessedg", "DsumRedg", "DsumWhiteg")
 run("sitable3")
+rm(ListToFeed)
 
 ##########################SI TABLE 4 - analysis by covariates########################
 
@@ -351,14 +353,14 @@ meaniessex <- function(Xvar, year, dataset, sex) {
   
   #set survey design
   survey_design <- dat_subset %>%
-    as_survey_design(ids = area, weights = wti, strata = astrata5)
+    as_survey_design(ids = serialh/area, weights = wti, strata = astrata5)
   
   #calculate the survey-weighted mean and SE
   Xval <- svymean(form_var, design = survey_design, na.rm = TRUE)
   
   #extract mean and SE, round to one dp
-  mean_val <- round(as.numeric(Xval), 1)
-  se_val <- round(sqrt(attr(Xval, "var")), 1) #I feel like there is a simpler way to extract SE,
+  mean_val <- round_condish(as.numeric(Xval))
+  se_val <- round_condish(sqrt(attr(Xval, "var"))) #I feel like there is a simpler way to extract SE,
   #but couldn't figure it out so just pulling it manually
   
   #combine mean & SE into one column
@@ -494,14 +496,14 @@ meaniesage <- function(Xvar, year, dataset, age) {
   
   #set survey design
   survey_design <- dat_subset %>%
-    as_survey_design(ids = area, weights = wti, strata = astrata5)
+    as_survey_design(ids = serialh/area, weights = wti, strata = astrata5)
   
   #calculate the survey-weighted mean and SE
   Xval <- svymean(form_var, design = survey_design, na.rm = TRUE)
   
   #extract mean and SE, round to one dp
-  mean_val <- round(as.numeric(Xval), 1)
-  se_val <- round(sqrt(attr(Xval, "var")), 1) #I feel like there is a simpler way to extract SE,
+  mean_val <- round_condish(as.numeric(Xval))
+  se_val <- round_condish(sqrt(attr(Xval, "var"))) #I feel like there is a simpler way to extract SE,
   #but couldn't figure it out so just pulling it manually
   
   #combine mean & SE into one column
@@ -667,14 +669,14 @@ meanieseqv <- function(Xvar, year, dataset, schmoney) {
   
   #set survey design
   survey_design <- dat_subset %>%
-    as_survey_design(ids = area, weights = wti, strata = astrata5)
+    as_survey_design(ids = serialh/area, weights = wti, strata = astrata5)
   
   #calculate the survey-weighted mean and SE
   Xval <- svymean(form_var, design = survey_design, na.rm = TRUE)
   
   #extract mean and SE, round to one dp
-  mean_val <- round(as.numeric(Xval), 1)
-  se_val <- round(sqrt(attr(Xval, "var")), 1) #I feel like there is a simpler way to extract SE,
+  mean_val <- round_condish(as.numeric(Xval))
+  se_val <- round_condish(sqrt(attr(Xval, "var"))) #I feel like there is a simpler way to extract SE,
   #but couldn't figure it out so just pulling it manually
   
   #combine mean & SE into one column
@@ -812,8 +814,262 @@ ListToFeed <- c("MeatDays", "avgMeatokaj", "gperokajMeat",
                 "RedDays", "avgRedokaj", "gperokajRed",
                 "WhiteDays", "avgWhiteokaj", "gperokajWhite")
 sitable4c <- runeqv("sitable4c")
-rm(ListToFeed, ordered_cols)
+rm(ListToFeed)
 
+
+#ADULTS (18+) vs. CHILDREN (<18)
+
+#modified meanies to include a lifestage parameter
+meanieslifestage <- function(Xvar, year, dataset, lifestage) {
+  dat_subset <- dataset %>% filter(SurveyYear == year & LifeStage == lifestage)
+  #replace Xvar with variable name
+  #(idk why i have to do this, but it wasn't working without it and it wouldn't
+  #let me just add the tilda to the beginning of Xvar for some reason...)
+  form_var <- as.formula(paste("~", Xvar))
+  
+  #set survey design
+  survey_design <- dat_subset %>%
+    as_survey_design(ids = serialh/area, weights = wti, strata = astrata5)
+  
+  #calculate the survey-weighted mean and SE
+  Xval <- svymean(form_var, design = survey_design, na.rm = TRUE)
+  
+  #extract mean and SE, round to one dp
+  mean_val <- round_condish(as.numeric(Xval))
+  se_val <- round_condish(sqrt(attr(Xval, "var"))) #I feel like there is a simpler way to extract SE,
+  #but couldn't figure it out so just pulling it manually
+  
+  #combine mean & SE into one column
+  mean_se_combined <- paste(mean_val, " (", se_val, ")", sep = "")
+  
+  #create a character list (to store the mean + SE values together)
+  year_values <- list()
+  year_values[[paste("Year", year)]] <- mean_se_combined
+  
+  return(year_values)
+}
+#modified meaniebobeanies to include a lifestage parameter
+meaniebobeanieslifestage <- function(var_list, dataset, lifestage) {
+  results <- data.frame()
+  for (var in var_list) {
+    combined <- numeric()
+    for (year in 1:11) {
+      year_values <- meanieslifestage(var, year, dataset, lifestage)
+      combined <- c(combined, year_values)
+    }
+    trans <- data.frame(t(combined))
+    results <- rbind(results, trans)
+  }
+  return(results)
+}
+pintlifestage <- function(variable, dat.design) {
+  form_var <- as.formula(paste(variable, "~ SurveyYear + LifeStage + LifeStage * SurveyYear"))
+  
+  #if variable ends with 'Days' or 'okaj', run Poisson model, if not, run glm model
+  if (grepl("Days$", variable) || grepl("okaj$", variable)) {
+    print(paste("Running Poisson model for:", variable))
+    model <- svyglm(form_var, family = poisson(link = "log"), design = dat.design)
+  } else {
+    print(paste("Running Linear model for:", variable))
+    model <- svyglm(form_var, design = dat.design)
+  }
+  
+  #extract p-value for children
+  modsum <- summary(model)
+  p_adult <- modsum$coefficients["SurveyYear", "Pr(>|t|)"]
+  p_adult_child_diff <- modsum$coefficients["SurveyYear:LifeStageC", "Pr(>|t|)"]
+  
+  #extract coefficients and covariance matrix (to calculate B1 + B3)
+  coefs <- coef(model)
+  cov_matrix <- vcov(model)
+  
+  #calculate effect, variance, and SE for change in children (baseline to Y11)
+  effect_child <- coefs["SurveyYear"] + coefs["SurveyYear:LifeStageC"]
+  var_child <- cov_matrix["SurveyYear", "SurveyYear"] + 
+    cov_matrix["SurveyYear:LifeStageC", "SurveyYear:LifeStageC"] + 
+    2 * cov_matrix["SurveyYear", "SurveyYear:LifeStageC"]
+  se_child <- sqrt(var_child)
+  
+  #calculate t-value and p-value for change in children
+  t_value <- effect_child / se_child
+  p_child <- 2 * (1 - pt(abs(t_value), df = df.residual(model)))
+  
+  #combine B1, B1+B3, & B3 into a one-row data frame (to merge with mean estimations)
+  peezies <- data.frame(Adult_P = p_adult, Child_P = p_child, Adult_Child_Pint = p_adult_child_diff)
+  
+  #round - got weird having 3 columns instead of 1, so had to implement this wee loop
+  for (col in colnames(peezies)) {
+    peezies[[col]] <- roundies(peezies[[col]])
+  }
+  
+  return(peezies)
+}
+runlifestage <- function(analysis) {
+  #adult
+  X <- meaniebobeanieslifestage(ListToFeed, dat, "A")
+  pvec <- character()
+  
+  for (var in ListToFeed) {
+    #get p-value for adult
+    pvalA <- pintlifestage(var, dat.design)$Adult_P
+    pvec <- c(pvec, pvalA)
+  }
+  
+  #add the column for adult p-values
+  X$pvalA <- pvec
+  
+  # Run for children
+  X1 <- meaniebobeanieslifestage(ListToFeed, dat, "C")
+  colnames(X1) <- paste0("C_", colnames(X1))
+  pvec1 <- character()
+  
+  for (var in ListToFeed) {
+    #get p-value for children
+    pvalC <- pintlifestage(var, dat.design)$Child_P
+    pvec1 <- c(pvec1, pvalC)
+  }
+  
+  #add the column for children p-values
+  X1$pvalC <- pvec1
+  
+  #combine
+  X <- cbind(X, X1)
+  
+  pvec2 <- character()
+  for (var in ListToFeed) {
+    #get p-value for adult-child interaction
+    pvalAC <- pintlifestage(var, dat.design)$Adult_Child_Pint
+    pvec2 <- c(pvec2, pvalAC)
+  }
+  
+  #add the column for adult and child difference p-values
+  X$PintAC <- pvec2
+  
+  rownames(X) <- ListToFeed
+  X <- rownames_to_column(X, var = "Meat Type")
+  colnames(X) <- gsub("\\.", " ", colnames(X))
+  #create dataframe with name
+  assign(analysis, X, envir = globalenv())
+}
+
+ListToFeed <- c("MeatDays", "avgMeatokaj", "gperokajMeat",
+                "ProcessedDays", "avgProcessedokaj", "gperokajProcessed",
+                "RedDays", "avgRedokaj", "gperokajRed",
+                "WhiteDays", "avgWhiteokaj", "gperokajWhite")
+runlifestage("sitable4d")
+rm(ListToFeed)
+
+######################ST TABLE 5 - decomp values#########################
+
+#create function to extract values to go into decomp
+decompsies <- function(meatvar, year, design = survey_design) {
+  form <- as.formula(paste0("~", meatvar))
+  mean <- unname(svymean(form, design = subset(design, SurveyYear == year), na.rm = TRUE)[[1]]) #1 in double brackets specifies that it's pulling the first item in the vector (this function makes mean and then SE column, so it's pulling the mean)
+  return(mean)
+}
+#function to calculate decomp values
+decompcalc <- function(zo1, zo2, d1, d2, p1, p2) {
+  o1 <- (zo1*4)/d1
+  o2 <- (zo2*4)/d2
+  
+  c1 <- p1*o1*d1 
+  c2 <- p2*o2*d2
+  
+  cdelta <- c2 - c1
+  cdeltaday <- cdelta/4
+  
+  dm <- ((c2-c1)/(log(c2)-(log(c1))))*(log(d2/d1))
+  om <- ((c2-c1)/(log(c2)-(log(c1))))*(log(o2/o1))
+  pm <- ((c2-c1)/(log(c2)-(log(c1))))*(log(p2/p1))
+  
+  dm1 <- dm/cdelta
+  om1 <- om/cdelta
+  pm1 <- pm/cdelta
+  
+  #return calculations
+  return(data.frame(days = dm1, occasions = om1, portionsize = pm1))
+}
+#extract calcs for each meat type
+extract <- function(okaj, day, porsche, y1, y11) {
+  zo1 <- decompsies(okaj, y1)
+  zo2 <- decompsies(okaj, y11)
+  
+  d1 <- decompsies(day, y1)
+  d2 <- decompsies(day, y11)
+  
+  p1 <- decompsies(porsche, y1)
+  p2 <- decompsies(porsche, y11)
+  
+  decompcalc(zo1, zo2, d1, d2, p1, p2)
+}
+#which meat types to calculate for
+meattypes <- c("Meat", "Processed", "Red", "White")
+#run decomp calcs
+results <- list() #create list to store the results for each meat type
+for(meat in meattypes) {
+  results[[meat]] <- extract(
+    paste0("avg", meat, "okaj"),
+    paste0(meat, "Days"),
+    paste0("gperokaj", meat),
+    1, 11
+  )
+}
+#transform into data frame
+sitable5 <- do.call(rbind, results)
+#decomposition for population subgroups
+decompsub <- function(meatvar, year, subvar, varlvl, design = survey_design) {
+  form <- as.formula(paste0("~", meatvar))
+  mean <- unname(svymean(form, design = subset(design, SurveyYear == year & (get(subvar) == varlvl)), na.rm = TRUE)[[1]])
+  return(mean)
+}
+extractsub <- function(okaj, day, porsche, y1, y11, subvar, varlvl) {
+  zo1 <- decompsub(okaj, y1, subvar, varlvl)
+  zo2 <- decompsub(okaj, y11, subvar, varlvl)
+  d1 <- decompsub(day, y1, subvar, varlvl)
+  d2 <- decompsub(day, y11, subvar, varlvl)
+  p1 <- decompsub(porsche, y1, subvar, varlvl)
+  p2 <- decompsub(porsche, y11, subvar, varlvl)
+  decompcalc(zo1, zo2, d1, d2, p1, p2)
+}
+# Which meat types to calculate for
+meattypes <- c("Meat", "Processed", "Red", "White")
+sexes <- c("M", "F")
+lifestages <- c("A", "C")
+
+# Initialize list to store the results for each meat type and category level
+results <- list()
+
+# Run decomp calcs
+for(subvar in c("Sex", "LifeStage")) {
+  
+  # Dynamically select the levels based on the current categorical variable
+  if(subvar == "Sex") {
+    levels <- sexes
+  } else if(subvar == "LifeStage") {
+    levels <- lifestages
+  }
+  
+  for(varlvl in levels) {
+    for(meat in meattypes) {
+      results[[paste0(meat, "_", subvar, "_", varlvl)]] <- extractsub(
+        paste0("avg", meat, "okaj"),
+        paste0(meat, "Days"),
+        paste0("gperokaj", meat),
+        1, 11,
+        subvar, varlvl
+      )
+    }
+  }
+}
+
+# Transform into data frame
+ph <- do.call(rbind, results)
+#combine ph into sitable5
+sitable5 <- rbind(sitable5, ph)
+#round and convert to percent (from proportion)
+sitable5 <- sitable5 %>%
+  mutate(across(everything(), ~ round(.x * 100, digits = 1)))
+rm(ph, results)
 
 
 
@@ -824,7 +1080,8 @@ rm(ListToFeed, ordered_cols)
 omegatable <- list("Table 1" = table1, "Table 2" = table2, 
                    "SI Table 1" = sitable1, "SI Table 2" = sitable2, 
                    "SI Table 3" = sitable3, "SI Table 4a" = sitable4a, 
-                   "SI Table 4b" = sitable4b, "SI Table 4c" = sitable4c)
+                   "SI Table 4b" = sitable4b, "SI Table 4c" = sitable4c,
+                   "SI Table 4d" = sitable4d, "SI Table 5" = sitable5)
 wb <- createWorkbook() #create excel workbook
 for (sheet_name in names(omegatable)) {
   addWorksheet(wb, sheetName = sheet_name)
@@ -840,243 +1097,7 @@ saveWorkbook(wb, file = filename, overwrite = TRUE)
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#######################DECOMPOSITION ANALYSIS###############
-
-#given values (pulled from table 2 analysis)
-d1 <- 3.27; d1_lower <- 3.20; d1_upper <- 3.35
-d2 <- 3.03; d2_lower <- 2.97; d2_upper <- 3.22
-zo1 <- 1.24; zo1_lower <- 1.20; zo1_upper <- 1.28
-zo2 <- 1.13; zo2_lower <- 1.11; zo2_upper <- 1.24
-p1 <- 85.76; p1_lower <- 82.13; p1_upper <- 89.38
-p2 <- 76.12; p2_lower <- 74.71; p2_upper <- 84.78
-
-#calculate o1 and o2 and their CIs
-o1 <- (zo1*4)/d1
-o1_lower <- (zo1_lower*4)/d1_upper
-o1_upper <- (zo1_upper*4)/d1_lower
-o2 <- (zo2*4)/d2
-o2_lower <- (zo2_lower*4)/d2_upper
-o2_upper <- (zo2_upper*4)/d2_lower
-
-#calculate c1, c2 and their CIs (total consumption)
-c1 <- p1*o1*d1
-c2 <- p2*o2*d2
-c1_lower <- p1_lower * o1_lower * d1_lower
-c1_upper <- p1_upper * o1_upper * d1_upper
-c2_lower <- p2_lower * o2_lower * d2_lower
-c2_upper <- p2_upper * o2_upper * d2_upper
-
-#standard errors
-SE_c1 <- (c1_upper - c1) / 1.96
-SE_c2 <- (c2_upper - c2) / 1.96
-
-#standard error for the difference
-SE_delta <- sqrt(SE_c1^2 + SE_c2^2)
-
-#change in consumption
-cdelta <- c2 - c1
-
-# Calculate the difference per day
-cdelta_per_day <- (c2 - c1) / 4
-
-# Determine the 95% confidence interval for the difference per day
-CI_delta_per_day_lower <- cdelta_per_day - 1.96 * (SE_delta / 4)
-CI_delta_per_day_upper <- cdelta_per_day + 1.96 * (SE_delta / 4)
-
-list(
-  cdelta_per_day = cdelta_per_day,
-  CI_delta_per_day = c(CI_delta_per_day_lower, CI_delta_per_day_upper)
-)
-
-
-
-#total meat
-#convert occasions per day variable to occasions per MEAT day (to add up for decomp)
-zo1 <- 1.238239
-zo2 <- 1.13248
-#total meat decomp
-d1 <- 3.270036 #meat days y1
-d2 <- 3.026991 #meat days y11
-o1 <- (zo1*4)/d1 #meat occasions per meat day y1
-o2 <- (zo2*4)/d2 #meat occasions per meat day y11
-p1 <- 85.758 #meat portion size y1
-p2 <- 76.120 #meat portion size y11
-#total consumption
-c1 <- p1*o1*d1
-c2 <- p2*o2*d2
-c1/4
-c2/4
-#calculate change in consumption
-cdelta <- c2 - c1
-#run models for days, occasions, and portion size
-dm <- ((c2-c1)/(log(c2)-(log(c1))))*(log(d2/d1))
-om <- ((c2-c1)/(log(c2)-(log(c1))))*(log(o2/o1))
-pm <- ((c2-c1)/(log(c2)-(log(c1))))*(log(p2/p1))
-#sum of models should equal change in consumption
-dm+om+pm
-#percent attributable to each reduction type
-dm1 <- dm/cdelta
-om1 <- om/cdelta
-pm1 <- pm/cdelta
-dm1
-om1
-pm1
-#check that the separate percents add up to 100%
-dm1+om1+pm1
-c1/4
-c2/4
-
-#processed meat
-#convert occasions per day variable to occasions per MEAT day (to add up for decomp)
-zo1 <- 0.5396168
-zo2 <- 0.4951703
-#processed meat decomp
-d1 <- 1.768601 #meat days y1
-d2 <- 1.592737 #meat days y11
-o1 <- (zo1*4)/d1 #meat occasions per meat day y1
-o2 <- (zo2*4)/d2 #meat occasions per meat day y11
-p1 <- 63.214 #meat portion size y1
-p2 <- 52.642 #meat portion size y11
-#total consumption
-c1 <- p1*o1*d1 
-c2 <- p2*o2*d2
-#calculate change in consumption
-cdelta <- c2 - c1 
-c1/4
-c2/4
-#run models for days, occasions, and portion size
-dm <- ((c2-c1)/(log(c2)-(log(c1))))*(log(d2/d1))
-om <- ((c2-c1)/(log(c2)-(log(c1))))*(log(o2/o1))
-pm <- ((c2-c1)/(log(c2)-(log(c1))))*(log(p2/p1))
-#sum of models should equal change in consumption
-dm+om+pm
-#percent attributable to each reduction type
-dm1 <- dm/cdelta
-om1 <- om/cdelta
-pm1 <- pm/cdelta
-dm1
-om1
-pm1
-#check that the separate percents add up to 100%
-dm1+om1+pm1
-cdelta/4
-
-
-
-#Red meat
-#convert occasions per day variable to occasions per MEAT day (to add up for decomp)
-zo1 <- 0.4397187
-zo2 <- 0.3344058
-#processed meat decomp
-d1 <- 1.559663 #meat days y1
-d2 <- 1.227206 #meat days y11
-o1 <- (zo1*4)/d1 #meat occasions per meat day y1
-o2 <- (zo2*4)/d2 #meat occasions per meat day y11
-p1 <- 89.731 #meat portion size y1
-p2 <- 69.686 #meat portion size y11
-#total consumption
-c1 <- p1*o1*d1 
-c2 <- p2*o2*d2
-c1/4
-c2/4
-#calculate change in consumption
-cdelta <- c2 - c1 
-#run models for days, occasions, and portion size
-dm <- ((c2-c1)/(log(c2)-(log(c1))))*(log(d2/d1))
-om <- ((c2-c1)/(log(c2)-(log(c1))))*(log(o2/o1))
-pm <- ((c2-c1)/(log(c2)-(log(c1))))*(log(p2/p1))
-#sum of models should equal change in consumption
-dm+om+pm
-#percent attributable to each reduction type
-dm1 <- dm/cdelta
-om1 <- om/cdelta
-pm1 <- pm/cdelta
-dm1
-om1
-pm1
-#check that the separate percents add up to 100%
-dm1+om1+pm1
-cdelta/4
-
-
-
-
-
-#white meat
-#convert occasions per day variable to occasions per MEAT day (to add up for decomp)
-zo1 <- 0.4043073
-zo2 <- 0.4514052
-#processed meat decomp
-d1 <- 1.420405 #meat days y1
-d2 <- 1.568424 #meat days y11
-o1 <- (zo1*4)/d1 #meat occasions per meat day y1
-o2 <- (zo2*4)/d2 #meat occasions per meat day y11
-p1 <- 84.650 #meat portion size y1
-p2 <- 79.741 #meat portion size y11
-#total consumption
-c1 <- p1*o1*d1 
-c2 <- p2*o2*d2
-c1/4
-c2/4
-#calculate change in consumption
-cdelta <- c2 - c1 
-#run models for days, occasions, and portion size
-dm <- ((c2-c1)/(log(c2)-(log(c1))))*(log(d2/d1))
-om <- ((c2-c1)/(log(c2)-(log(c1))))*(log(o2/o1))
-pm <- ((c2-c1)/(log(c2)-(log(c1))))*(log(p2/p1))
-#sum of models should equal change in consumption
-dm+om+pm
-#percent attributable to each reduction type
-dm1 <- dm/cdelta
-om1 <- om/cdelta
-pm1 <- pm/cdelta
-dm1
-om1
-pm1
-#check that the separate percents add up to 100%
-dm1+om1+pm1
-cdelta/4
-
-
+###################FIGURES##########################
 
 #######################COLORBLIND PALETTE##################
 #define the color palette
@@ -1093,6 +1114,19 @@ ggplot(palette_df, aes(x = factor(label), y = 1, fill = color)) +
 
 
 #######################FIGURE 1###########################
+#set survey designs
+dat$SurveyYear <- as.factor(dat$SurveyYear)
+#specify survey weighting structure for GLM
+dat$fpc <- 15655
+dat.design <-
+  svydesign(
+    id = ~area,
+    strata = ~astrata5,
+    data = dat,
+    weights = ~wti,
+    fpc = ~fpc
+  )
+
 #function for Survey Year x axis labels
 custom_x_labels <- function(x) {
   labels <- ifelse(x == 1, "2008/09", sprintf("'%02d/'%02d", x + 7, (x + 7) %% 100 + 1))
@@ -1119,7 +1153,7 @@ color_palette <- c("#E69F00", "#0072B2", "#D55E00", "#009E73") #order: processed
 #correct order
 predictions$Category <- factor(predictions$Category, levels = c("ProcessedDays", "WhiteDays", "RedDays", "NoMeatDays"))
 #category names
-levels(predictions$Category) <- c("Processed", "White", "Red", "No Meat")
+levels(predictions$Category) <- c("Processed", "White", "Red", "No meat")
 #convert SurveyYear to numeric
 predictions$SurveyYear <- as.numeric(as.character(predictions$SurveyYear))
 #create plot
@@ -1128,13 +1162,13 @@ plot1 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Cate
   geom_line(aes(linetype = "solid")) +
   geom_smooth(method = "glm", formula = 'y ~ x', se = FALSE, aes(linetype = "dotted", group = Category)) +
   scale_color_manual(values = color_palette) +
-  scale_linetype_manual(name = "Line Type",
+  scale_linetype_manual(name = "Line type",
                         values = c("solid" = "solid", "dotted" = "dotted"),
                         labels = c("solid" = "Actual data", "dotted" = "2008/09-2018/19 trend")) +
-  labs(x = "Survey Year", y = "No. meat days/4-day period", color = "Meat category") +
+  labs(x = "Survey year", y = "No. meat days/4-day period", color = "Meat category") +
   scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
   theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12),
+  theme(text = element_text(family = "Times", size = 12),
         axis.text.x = element_text(angle = 45, hjust = 1)) +
   guides(linetype = guide_legend(override.aes = list(color = "black")))
 print(plot1)
@@ -1166,10 +1200,10 @@ plot2 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedOccasions, color =
   geom_line() +
   geom_smooth(method = "glm", se = FALSE, linetype = "dotted", aes(group = Category)) + #this adds the fitted line
   scale_color_manual(values = color_palette) +
-  labs(x = "Survey Year", y = "No. meat-eating occasions/day", color = "Meat category") +
+  labs(x = "Survey year", y = "No. meat-eating occasions/day", color = "Meat category") +
   scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
   theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12),
+  theme(text = element_text(family = "Times", size = 12),
         axis.text.x = element_text(angle = 45, hjust = 1)) +
   guides(linetype = guide_legend(override.aes = list(color = "black")))
 print(plot2)
@@ -1201,13 +1235,24 @@ plot3 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedPortion, color = C
   geom_line() +
   geom_smooth(method = "glm", se = FALSE, linetype = "dotted", aes(group = Category)) + #this adds the fitted line
   scale_color_manual(values = color_palette) +
-  labs(x = "Survey Year", y = "Portion size (g)/meat-eating occasion", color = "Meat category") +
+  labs(x = "Survey year", y = "Portion size (g)/meat-eating occasion", color = "Meat category") +
   scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
   theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12),
+  theme(text = element_text(family = "Times", size = 12),
         axis.text.x = element_text(angle = 45, hjust = 1)) +
   guides(linetype = guide_legend(override.aes = list(color = "black")))
 print(plot3)
+
+#transparent backgrounds
+transparent_theme <- theme(
+  panel.background = element_rect(fill = "transparent"),
+  plot.background = element_rect(fill = "transparent", color = NA),
+  legend.background = element_rect(fill = "transparent", color = NA),
+  legend.key = element_rect(fill = "transparent", color = NA)
+)
+plot1 <- plot1 + transparent_theme
+plot2 <- plot2 + transparent_theme
+plot3 <- plot3 + transparent_theme
 
 #combine all into 1 figure
 #Remove the legend from plot2 and plot3
@@ -1223,27 +1268,17 @@ bottom_row <- cowplot::plot_grid(plot3, legend_grob, nrow = 1, rel_widths = c(1,
 combined_plot <- cowplot::plot_grid(top_row, bottom_row, ncol = 1, rel_heights = c(1, 1))
 print(combined_plot)
 ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 1.png", combined_plot, width = 8, height = 8, dpi = 600)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#used these for a prezzi - gonna save them just in case
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/plot1.png", plot1, width = 4, height = 4, dpi = 900)
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/plot2.png", plot2, width = 4, height = 4, dpi = 900)
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/plot3.png", plot3, width = 4, height = 4, dpi = 900)
 
 ################FIGURE 2#########################
 #decomposition analysis plot
 #create dataset (values pulled from decomposition analysis section of this code)
 meat_data <- data.frame(
-  Meat = factor(c("Total Meat", "Processed Meat", "Red Meat", "White Meat"),
-                levels = c("Total Meat", "Processed Meat", "Red Meat", "White Meat")),
+  Meat = factor(c("Total meat", "Processed meat", "Red meat", "White meat"),
+                levels = c("Total meat", "Processed meat", "Red meat", "White meat")),
   Total_Delta = c(-79.94, -32.18, -64.61, 7.08),
   Days_Delta = c(-29.61, -12.53, -29.41, 13.92),
   Occasions_Delta = c(-4.62, 2.25, -4.18, 1.55),
@@ -1268,7 +1303,7 @@ bar_plot <- ggplot(melted_data, aes(x = Meat, y = value, fill = variable)) +
                                "Portion_Size_Delta" = "Portion size of meat")) +
   labs(x = "Meat sub-type", y = "Change in meat consumption (g/capita/day)", fill = "Meat reduction behaviours") +
   theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12)) 
+  theme(text = element_text(family = "Times", size = 12)) 
 #define the y-axis limits (didn't like the cuts it was giving me)
 y_limits <- c(-22, 5)
 #update plot with modified y-axis limits/breaks and a dashed line at y=0
@@ -1278,6 +1313,7 @@ bar_plot <- bar_plot +
   geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
   geom_text(aes(label = sprintf("%.1f", value), y = value, group = variable, vjust = ifelse(value >= 0, -0.5, 1.5)), 
             position = position_dodge(width = 0.5), size = 2.5)
+bar_plot <- bar_plot + transparent_theme
 print(bar_plot)
 file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 2.png"
 ggsave(file_path, bar_plot, width = 10, height = 8, dpi = 600)
@@ -1310,12 +1346,12 @@ meat_days_prop_long <- pivot_longer(meat_days_prop_no_se, cols = -SurveyYear, na
 plot1 <- ggplot(meat_days_prop_long, aes(x = SurveyYear, y = proportion, fill = factor(str_remove(MeatDays, "prop_"), levels = c("4", "3", "2", "1", "0")))) + 
   geom_col() +
   scale_fill_brewer(palette = "Reds", direction = -1) +
-  labs(x = "Survey Year", y = "Proportion of participants", fill = "Meat Days") +
+  labs(x = "Survey year", y = "Proportion of participants", fill = "Meat days") +
   scale_x_continuous(breaks = meat_days_prop$SurveyYear, labels = custom_x_labels) +
   geom_text(aes(label = paste0(round(proportion*100),"%")), 
             position = position_stack(vjust = 0.5)) +
   theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12)) +
+  theme(text = element_text(family = "Times", size = 12)) +
   scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.25))
 plot1
 
@@ -1339,12 +1375,12 @@ Processed_days_prop_long <- pivot_longer(Processed_days_prop_no_se, cols = -Surv
 plot2 <- ggplot(Processed_days_prop_long, aes(x = SurveyYear, y = proportion, fill = factor(str_remove(ProcessedDays, "prop_"), levels = c("4", "3", "2", "1", "0")))) + 
   geom_col() +
   scale_fill_brewer(palette = "Reds", direction = -1) +
-  labs(x = "Survey Year", y = "Proportion of participants", fill = "Processed Days") +
+  labs(x = "Survey year", y = "Proportion of participants", fill = "Processed Days") +
   scale_x_continuous(breaks = Processed_days_prop$SurveyYear, labels = custom_x_labels) +
   geom_text(aes(label = paste0(round(proportion*100),"%")), 
             position = position_stack(vjust = 0.5)) +
   theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12)) +
+  theme(text = element_text(family = "Times", size = 12)) +
   scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.25))
 plot2
 
@@ -1368,12 +1404,12 @@ Red_days_prop_long <- pivot_longer(Red_days_prop_no_se, cols = -SurveyYear, name
 plot3 <- ggplot(Red_days_prop_long, aes(x = SurveyYear, y = proportion, fill = factor(str_remove(RedDays, "prop_"), levels = c("4", "3", "2", "1", "0")))) +
   geom_col() +
   scale_fill_brewer(palette = "Reds", direction = -1) +
-  labs(x = "Survey Year", y = "Proportion of participants", fill = "Red Days") +
+  labs(x = "Survey year", y = "Proportion of participants", fill = "Red Days") +
   scale_x_continuous(breaks = Red_days_prop$SurveyYear, labels = custom_x_labels) +
   geom_text(aes(label = paste0(round(proportion*100),"%")), 
             position = position_stack(vjust = 0.5)) +
   theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12)) +
+  theme(text = element_text(family = "Times", size = 12)) +
   scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.25))
 plot3
 
@@ -1397,12 +1433,12 @@ white_days_prop_long <- pivot_longer(white_days_prop_no_se, cols = -SurveyYear, 
 plot4 <- ggplot(white_days_prop_long, aes(x = SurveyYear, y = proportion, fill = factor(str_remove(WhiteDays, "prop_"), levels = c("4", "3", "2", "1", "0")))) +
   geom_col() +
   scale_fill_brewer(palette = "Reds", direction = -1) +
-  labs(x = "Survey Year", y = "Proportion of participants", fill = "White Days") +
+  labs(x = "Survey year", y = "Proportion of participants", fill = "White Days") +
   scale_x_continuous(breaks = white_days_prop$SurveyYear, labels = custom_x_labels) +
   geom_text(aes(label = paste0(round(proportion*100),"%")), 
             position = position_stack(vjust = 0.5)) +
   theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12)) +
+  theme(text = element_text(family = "Times", size = 12)) +
   scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.25))
 plot4
 
@@ -1429,10 +1465,7 @@ combined_plot
 file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 3.png"
 ggsave(file_path, combined_plot, width = 16, height = 12, dpi = 600)
 
-
-
-
-#create counts for MeatDays by SurveyYear
+#create counts for MeatDays by SurveyYear (needed for results section text)
 meat_days_counts <- dat_svy %>% 
   group_by(SurveyYear) %>% 
   summarise(days0 = sum(MeatDays == 0),
@@ -1446,178 +1479,16 @@ meat_days_counts <- dat_svy %>%
 
 
 
-###############SI FIGURE 1###########################
-#############REMOVED FROM ANALYSIS#######################
-
-#create variable for '% of SMTs that contain meat'
-#breakfast
-dat$BMeatokajperc <- dat$BMeatokaj/dat$Btotokaj
-dat$BProcessedokajperc <- dat$BProcessedokaj/dat$Btotokaj
-dat$BRedokajperc <- dat$BRedokaj/dat$Btotokaj
-dat$BWhiteokajperc <- dat$BWhiteokaj/dat$Btotokaj
-#lunch
-dat$LMeatokajperc <- dat$LMeatokaj/dat$Ltotokaj
-dat$LProcessedokajperc <- dat$LProcessedokaj/dat$Ltotokaj
-dat$LRedokajperc <- dat$LRedokaj/dat$Ltotokaj
-dat$LWhiteokajperc <- dat$LWhiteokaj/dat$Ltotokaj
-#dinner
-dat$DMeatokajperc <- dat$DMeatokaj/dat$Dtotokaj
-dat$DProcessedokajperc <- dat$DProcessedokaj/dat$Dtotokaj
-dat$DRedokajperc <- dat$DRedokaj/dat$Dtotokaj
-dat$DWhiteokajperc <- dat$DWhiteokaj/dat$Dtotokaj
-
-#function for survey year x axis
-custom_x_labels <- function(x) {
-  labels <- ifelse(x == 1, "2008/09", sprintf("'%02d/'%02d", x + 7, (x + 7) %% 100 + 1))
-  return(labels)
-}
-
-#assign survey to dataset
-dat_svy <- as_survey(survey_design)
-#create categorical variable for BMeatokajperc
-dat_svy <- dat_svy %>%
-  mutate(BMeatokajperc_cat = case_when(
-    BMeatokajperc == 0 ~ "0%",
-    BMeatokajperc > 0 & BMeatokajperc < 0.5 ~ "1-49%",
-    BMeatokajperc >= 0.5 & BMeatokajperc < 1 ~ "50-99%",
-    BMeatokajperc == 1 ~ "100%"
-  )) %>%
-  filter(!is.na(BMeatokajperc_cat))
-#summarize data for plotting
-summary_df <- dat_svy %>%
-  group_by(SurveyYear, BMeatokajperc_cat) %>%
-  summarise(count = survey_total(weights = weights)) %>%
-  ungroup()
-#calculate the percentage for each category within each SurveyYear
-summary_df <- summary_df %>%
-  group_by(SurveyYear) %>%
-  mutate(percentage = count / sum(count) * 100) %>%
-  ungroup()
-#reorder the categories
-summary_df$BMeatokajperc_cat <- factor(summary_df$BMeatokajperc_cat, levels = c("100%", "50-99%", "1-49%", "0%"))
-#plot
-plot1 <- ggplot(summary_df, aes(x = SurveyYear, y = percentage, fill = BMeatokajperc_cat)) +
-  geom_bar(stat = "identity") +
-  geom_text(aes(label = sprintf("%.1f%%", percentage)), position = position_stack(vjust = 0.5), size = 3.5) +
-  scale_x_continuous(breaks = summary_df$SurveyYear, labels = custom_x_labels) +
-  scale_y_continuous(labels = function(x) paste0(x, "%")) +
-  scale_fill_brewer(palette = "Reds", direction = -1) +
-  theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12)) +
-  labs(x = "Survey Year", y = "Percentage of breakfasts containing meat") +
-  guides(fill = guide_legend(title = "Meat consumption"))
-print(plot1)
-
-#create categorical variable for LMeatokajperc
-dat_svy <- dat_svy %>%
-  mutate(LMeatokajperc_cat = case_when(
-    LMeatokajperc == 0 ~ "0%",
-    LMeatokajperc > 0 & LMeatokajperc < 0.5 ~ "1-49%",
-    LMeatokajperc >= 0.5 & LMeatokajperc < 1 ~ "50-99%",
-    LMeatokajperc == 1 ~ "100%"
-  )) %>%
-  filter(!is.na(LMeatokajperc_cat))
-#summarize data for plotting
-summary_df <- dat_svy %>%
-  group_by(SurveyYear, LMeatokajperc_cat) %>%
-  summarise(count = survey_total(weights = weights)) %>%
-  ungroup()
-#calculate the percentage for each category within each SurveyYear
-summary_df <- summary_df %>%
-  group_by(SurveyYear) %>%
-  mutate(percentage = count / sum(count) * 100) %>%
-  ungroup()
-#reorder the categories
-summary_df$LMeatokajperc_cat <- factor(summary_df$LMeatokajperc_cat, levels = c("100%", "50-99%", "1-49%", "0%"))
-#plot
-plot2 <- ggplot(summary_df, aes(x = SurveyYear, y = percentage, fill = LMeatokajperc_cat)) +
-  geom_bar(stat = "identity") +
-  geom_text(aes(label = sprintf("%.1f%%", percentage)), position = position_stack(vjust = 0.5), size = 3.5) +
-  scale_x_continuous(breaks = summary_df$SurveyYear, labels = custom_x_labels) +
-  scale_y_continuous(labels = function(x) paste0(x, "%")) +
-  scale_fill_brewer(palette = "Reds", direction = -1) +
-  theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12)) +
-  labs(x = "Survey Year", y = "Percentage of lunches containing meat") +
-  guides(fill = guide_legend(title = "Meat consumption"))
-print(plot2)
-
-#create categorical variable for DMeatokajperc
-dat_svy <- dat_svy %>%
-  mutate(DMeatokajperc_cat = case_when(
-    DMeatokajperc == 0 ~ "0%",
-    DMeatokajperc > 0 & DMeatokajperc < 0.5 ~ "1-49%",
-    DMeatokajperc >= 0.5 & DMeatokajperc < 1 ~ "50-99%",
-    DMeatokajperc == 1 ~ "100%"
-  )) %>%
-  filter(!is.na(DMeatokajperc_cat))
-#ummarize data for plotting
-summary_df <- dat_svy %>%
-  group_by(SurveyYear, DMeatokajperc_cat) %>%
-  summarise(count = survey_total(weights = weights)) %>%
-  ungroup()
-#calculate the percentage for each category within each SurveyYear
-summary_df <- summary_df %>%
-  group_by(SurveyYear) %>%
-  mutate(percentage = count / sum(count) * 100) %>%
-  ungroup()
-#reorder the categories
-summary_df$DMeatokajperc_cat <- factor(summary_df$DMeatokajperc_cat, levels = c("100%", "50-99%", "1-49%", "0%"))
-#plot
-plot3 <- ggplot(summary_df, aes(x = SurveyYear, y = percentage, fill = DMeatokajperc_cat)) +
-  geom_bar(stat = "identity") +
-  geom_text(aes(label = sprintf("%.1f%%", percentage)), position = position_stack(vjust = 0.5), size = 3.5) +
-  scale_x_continuous(breaks = summary_df$SurveyYear, labels = custom_x_labels) +
-  scale_y_continuous(labels = function(x) paste0(x, "%")) +
-  scale_fill_brewer(palette = "Reds", direction = -1) +
-  theme_classic() +
-  theme(text = element_text(family = "Avenir", size = 12)) +
-  labs(x = "Survey Year", y = "Percentage of dinners containing meat") +
-  guides(fill = guide_legend(title = "Meat consumption"))
-print(plot3)
 
 
-#combine all into 1 figure
-#Remove the legend from plot2 and plot3
-plot2 <- plot2 + theme(legend.position = "none")
-plot3 <- plot3 + theme(legend.position = "none")
-#extract the legend from plot1
-legend_grob <- cowplot::get_legend(plot1)
-#remove the legend from plot1
-plot1 <- plot1 + theme(legend.position = "none")
-#combine the plots and legend into a single plot
-top_row <- cowplot::plot_grid(plot1, plot2, nrow = 1)
-bottom_row <- cowplot::plot_grid(plot3, legend_grob, nrow = 1, rel_widths = c(1, 1))
-combined_plot <- cowplot::plot_grid(top_row, bottom_row, ncol = 1, rel_heights = c(1, 1))
-print(combined_plot)
-ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/SI Figure 1.png", combined_plot, width = 16, height = 16, dpi = 600)
 
 
 
 
 
 
-#####################DISTRIBUTION TESTS###########################
-ggplot(dat, aes(x=MeatDays)) + geom_histogram(binwidth=.5)
-ggplot(dat, aes(x=ProcessedDays)) + geom_histogram(binwidth=.5)
-ggplot(dat, aes(x=RedDays)) + geom_histogram(binwidth=.5)
-ggplot(dat, aes(x=WhiteDays)) + geom_histogram(binwidth=.5)
-ggplot(dat, aes(x=NoMeatDays)) + geom_histogram(binwidth=.5)
 
-ggplot(dat, aes(x=avgMeatokaj)) + geom_histogram(binwidth=.5)
-ggplot(dat, aes(x=avgProcessedokaj)) + geom_histogram(binwidth=.5)
-ggplot(dat, aes(x=avgRedokaj)) + geom_histogram(binwidth=.5)
-ggplot(dat, aes(x=avgWhiteokaj)) + geom_histogram(binwidth=.5)
-ggplot(dat, aes(x=avgNoMeatokaj)) + geom_histogram(binwidth=.5)
 
-ggplot(dat, aes(x=gperokajMeat)) + geom_histogram(binwidth=.5) #excluded 629
-ggplot(dat, aes(x=gperokajProcessed)) + geom_histogram(binwidth=.5) #excluded 2,967
-ggplot(dat, aes(x=gperokajRed)) + geom_histogram(binwidth=.5) #excluded 4,095
-ggplot(dat, aes(x=gperokajWhite)) + geom_histogram(binwidth=.5) #excluded 3,232
-15332-629
-15332-2967
-15332-4095
-15332-3232
 
 
 
@@ -1625,92 +1496,3 @@ ggplot(dat, aes(x=gperokajWhite)) + geom_histogram(binwidth=.5) #excluded 3,232
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-##############plot effecrts for covariate analysis###############
-
-m1 <- svyglm(gperokajMeat~ SurveyYear + Sex + SurveyYear * Sex,
-             family = poisson(link = "log"), dat.design)
-plot(allEffects(m1), multiline=T, confint = list(style = "auto"))
-
-
-
-
-
-
-
-
-#####################MISC##########################3
-# get variable names of the data (to make data dictionary)
-variable_names <- names(dat)
-print(variable_names)
-
-#look at distribution of meat at mealtimes

@@ -9,10 +9,10 @@ yr5_6 <- read.csv('ndns_rp_yr5-6a_indiv.csv')
 yr7_8 <- read.csv('ndns_rp_yr7-8a_indiv.csv')
 yr9_11 <- read.csv('ndns_rp_yr9-11a_indiv_20211020.csv')
 #keep desired variables
-yr1_4 <- yr1_4[ , which(names(yr1_4) %in% c("seriali", "area", "astrata5", "wti_UKY1234", "eqvinc"))]
-yr5_6 <- yr5_6[ , which(names(yr5_6) %in% c("seriali", "area", "astrata5", "wti_Y56", "eqvinc"))]
-yr7_8 <- yr7_8[ , which(names(yr7_8) %in% c("seriali", "area", "astrata5", "wti_Y78", "eqvinc"))]
-yr9_11 <- yr9_11[ , which(names(yr9_11) %in% c("seriali", "Area", "astrata5", "wti_Y911", "eqv3"))]
+yr1_4 <- yr1_4[ , which(names(yr1_4) %in% c("seriali", "serialh", "area", "astrata5", "wti_UKY1234", "eqvinc"))]
+yr5_6 <- yr5_6[ , which(names(yr5_6) %in% c("seriali", "serialh", "area", "astrata5", "wti_Y56", "eqvinc"))]
+yr7_8 <- yr7_8[ , which(names(yr7_8) %in% c("seriali", "serialh", "area", "astrata5", "wti_Y78", "eqvinc"))]
+yr9_11 <- yr9_11[ , which(names(yr9_11) %in% c("seriali", "serialh", "Area", "astrata5", "wti_Y911", "eqv3"))]
 #turn yrs 1-7 income data into categorical (tertiles)
 yr1_4 <- yr1_4 %>%
   mutate(eqvinc = ntile(ifelse(eqvinc == -1, NA, eqvinc), 3))

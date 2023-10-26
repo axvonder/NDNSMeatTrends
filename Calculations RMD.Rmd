@@ -1,7 +1,7 @@
 ---
 title: "Contribution of meat-free days, meat-free meals, and portion sizes to declines in meat consumption in the UK"
-author: "author of this RMD: AV"
-date: "2023-07-17"
+author: "author of this RMD: Alexander Vonderschmidt"
+date: "2023-10-15"
 output:
   pdf_document: default
   html_document: default
@@ -16,7 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ## Load libraries and datasets
 
 
-```{r}
+```{r, echo=FALSE}
 library(tidyverse)
 library(srvyr)
 library(survey)
@@ -28,8 +28,9 @@ library(gridExtra)
 library(cowplot)
 library(MASS)
 library(purrr)
-library(extrafont)
-font_import()
+library(tibble)
+library(gt)
+library(openxlsx)
 #set wd
 setwd("/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data")
 #upload datasets
@@ -44,8 +45,12 @@ dat <- read.csv('omega.csv')
 
 ```{r, warning=FALSE}
 #########################EDITS AND CREATIONS#######################
-#remove participants with only 3 diary days (removed n = 323; n = 15,332)
-dat <- dat[!(dat$DiaryDaysCompleted == 3),]
+
+#set a participant's weight to 0 if the participant has <4 diary days completed
+#this allows the participant to be excluded from analysis while maintaining original weights
+dat$wti[dat$DiaryDaysCompleted < 4] <- 0
+check3days <- subset(dat, DiaryDaysCompleted == 3, select = "wti") #do a widdle checky-poo
+rm(check3days)
 
 #define age brackets; <10 = 1; 11-17 = 2; 18-40 = 3; 41-59 = 4; >= 60 = 5
 dat <- dat %>%
@@ -57,6 +62,10 @@ dat <- dat %>%
     Age >= 60 ~ 5,
     TRUE ~ 99
   ))
+#set eqv NAs to -99 for missing group
+dat$eqv <- ifelse(is.na(dat$eqv), -99, dat$eqv)
+#add categorical variable for adult yes/no
+dat$LifeStage <- ifelse(dat$Age >=18, "A", "C")
 #set reference group for age (18-40)
 dat$AgeG <- as.factor(dat$AgeG)
 dat$AgeG <- relevel(dat$AgeG, ref = 3)
@@ -73,27 +82,26 @@ varnames <- c("BsumMeatg", "BsumProcessedg", "BsumRedg", "BsumWhiteg",
 for (var in varnames) {
   dat[[var]] <- ifelse(dat[[var]] == 0, NA, dat[[var]])
 }
+rm(var, varnames)
 
 #set survey designs
-#make survey year factor or numeric, depending on analyses intended to be completed
-#make sure to re-set the survey design after you've changed surveyyear's variable type
-dat$SurveyYear <- as.factor(dat$SurveyYear)#run for regression analyses
-dat$SurveyYear <- as.numeric(dat$SurveyYear)#run for plots and also for calculating p value trends across all years (not just y1 & y11)
-
-#RERUN SURVEY DESIGN IF YOU'VE CHANGE ANY VARIABLES TO/FROM FACTOR/NUMERIC
-#specify survey weighting structure for GLM
-dat$fpc <- 15332
+dat$SurveyYear <- as.numeric(dat$SurveyYear)
+#change 2 cluster variables (area [PSU] and serialh [household] to factors)
+dat$area <- as.factor(dat$area)
+dat$serialh <- as.factor(dat$serialh)
+#specify survey weighting structure for GLM & Poisson (used for calculating P-values)
 dat.design <-
   svydesign(
-    id = ~area,
-    strata = ~astrata5,
+    id = ~serialh/area, #multi-level cluster of households and PSUs
+    strata = ~astrata5, #stratification by district
     data = dat,
-    weights = ~wti,
-    fpc = ~fpc
+    weights = ~wti, #NDNS-assigned survey weight
+    nest = TRUE
   )
 
-#create the survey design object (for descriptive)
-survey_design <- svydesign(id = ~area, strata = ~astrata5, weights = ~wti, data = dat)
+#specify survey weighting structure for cross-sectional analysis (weighted means by year)
+survey_design <- dat %>%
+  as_survey_design(ids = serialh/area, weights = wti, strata = astrata5)
 ```
 
 \pagebreak
