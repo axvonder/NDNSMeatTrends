@@ -1035,18 +1035,21 @@ extractsub <- function(okaj, day, porsche, y1, y11, subvar, varlvl) {
 meattypes <- c("Meat", "Processed", "Red", "White")
 sexes <- c("M", "F")
 lifestages <- c("A", "C")
+eqvs <- c("1", "2", "3")
 
 # Initialize list to store the results for each meat type and category level
 results <- list()
 
 # Run decomp calcs
-for(subvar in c("Sex", "LifeStage")) {
+for(subvar in c("Sex", "LifeStage", "eqv")) {
   
-  # Dynamically select the levels based on the current categorical variable
+  # select the levels based on the current categorical variable being used in the loop
   if(subvar == "Sex") {
     levels <- sexes
   } else if(subvar == "LifeStage") {
     levels <- lifestages
+  } else if(subvar == "eqv") {
+    levels <- eqvs  # Assuming 'eqvs' is defined somewhere in your code as the levels of 'eqv'
   }
   
   for(varlvl in levels) {
