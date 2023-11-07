@@ -964,7 +964,7 @@ rm(ListToFeed)
 #create function to extract values to go into decomp
 decompsies <- function(meatvar, year, design = survey_design) {
   form <- as.formula(paste0("~", meatvar))
-  mean <- unname(svymean(form, design = subset(design, SurveyYear == year), na.rm = TRUE)[[1]]) #1 in double brackets specifies that it's pulling the first item in the vector (this function makes mean and then SE column, so it's pulling the mean)
+  mean <- unname(svymean(form, design = subset(design, SurveyYear == year), na.rm = TRUE)[[1]]) #vondy note: 1 in double brackets specifies that it's pulling the first item in the vector (this function makes mean and then SE column, so it's pulling the mean)
   return(mean)
 }
 #function to calculate decomp values
@@ -982,12 +982,12 @@ decompcalc <- function(zo1, zo2, d1, d2, p1, p2) {
   om <- ((c2-c1)/(log(c2)-(log(c1))))*(log(o2/o1))
   pm <- ((c2-c1)/(log(c2)-(log(c1))))*(log(p2/p1))
   
-  dm1 <- dm/cdelta
-  om1 <- om/cdelta
-  pm1 <- pm/cdelta
+  dm1 = dm/4
+  om1 = om/4
+  pm1 = pm/4
   
   #return calculations
-  return(data.frame(days = dm1, occasions = om1, portionsize = pm1))
+  return(data.frame(days = dm1, occasions = om1, portionsize = pm1, totchange = cdeltaday))
 }
 #extract calcs for each meat type
 extract <- function(okaj, day, porsche, y1, y11) {
@@ -1071,11 +1071,9 @@ ph <- do.call(rbind, results)
 sitable5 <- rbind(sitable5, ph)
 #round and convert to percent (from proportion)
 sitable5 <- sitable5 %>%
-  mutate(across(everything(), ~ round(.x * 100, digits = 1)))
+  mutate(across(everything(), ~ round(.x, digits = 2)))
 rm(ph, results)
-
-
-
+sitable5 <- sitable5 %>% tibble::rownames_to_column(var = "Meat Type")
 
 
 
