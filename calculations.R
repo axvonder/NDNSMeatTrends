@@ -81,7 +81,7 @@ survey_design <- dat %>%
 #####################TABLE 1 - demographic analysis #######################
 #rounding conditional statement (2 decimals for small numbers, 1 for large numbers)
 round_condish <- function(x) {
-  ifelse(x >= 100, round(x, 0), ifelse(x >= 10, round(x, 1), round(x, 2)))
+  ifelse(x >= 10, round(x, 1), round(x, 2))
 }
 #create empty data frames to hold results
 results_ageg <- data.frame(characteristic = unique(dat$AgeG))
@@ -161,13 +161,17 @@ demo_yearby <- function(dataset, group_var, results_df) {
   
   for (year in 1:11) {
     dat_subset <- dataset %>% filter(SurveyYear == year)
+    
+    #set survey design per year
+    survey_design_year <- dat_subset %>%
+      as_survey_design(ids = serialh/area, weights = wti, strata = astrata5)
       
       unweighted_counts <- dat_subset %>%
         group_by(!!sym(group_var)) %>%
         summarise(count = n()) %>%
         rename(characteristic = !!sym(group_var))
       
-      weighted_percentages <- survey_design %>%
+      weighted_percentages <- survey_design_year %>%
         group_by(!!sym(group_var)) %>%
         summarise(pct = survey_mean(na.rm = TRUE)) %>%
         mutate(pct = round_condish(100 * pct)) %>% 
