@@ -659,7 +659,147 @@ rm(ListToFeed)
 
 
 
+#ADULTS (18+) vs. CHILDREN (<18)
 
+#modified meanies to include a lifestage parameter
+meanieslifestage <- function(Xvar, year, dataset, lifestage) {
+  dat_subset <- dataset %>% filter(SurveyYear == year & LifeStage == lifestage)
+  #replace Xvar with variable name
+  #(idk why i have to do this, but it wasn't working without it and it wouldn't
+  #let me just add the tilda to the beginning of Xvar for some reason...)
+  form_var <- as.formula(paste("~", Xvar))
+  
+  #set survey design
+  survey_design <- dat_subset %>%
+    as_survey_design(ids = serialh/area, weights = wti, strata = astrata5)
+  
+  #calculate the survey-weighted mean and SE
+  Xval <- svymean(form_var, design = survey_design, na.rm = TRUE)
+  
+  #extract mean and SE, round to one dp
+  mean_val <- round_condish(as.numeric(Xval))
+  se_val <- round_condish(sqrt(attr(Xval, "var"))) #I feel like there is a simpler way to extract SE,
+  #but couldn't figure it out so just pulling it manually
+  
+  #combine mean & SE into one column
+  mean_se_combined <- paste(mean_val, " (", se_val, ")", sep = "")
+  
+  #create a character list (to store the mean + SE values together)
+  year_values <- list()
+  year_values[[paste("Year", year)]] <- mean_se_combined
+  
+  return(year_values)
+}
+#modified meaniebobeanies to include a lifestage parameter
+meaniebobeanieslifestage <- function(var_list, dataset, lifestage) {
+  results <- data.frame()
+  for (var in var_list) {
+    combined <- numeric()
+    for (year in 1:11) {
+      year_values <- meanieslifestage(var, year, dataset, lifestage)
+      combined <- c(combined, year_values)
+    }
+    trans <- data.frame(t(combined))
+    results <- rbind(results, trans)
+  }
+  return(results)
+}
+pintlifestage <- function(variable, dat.design) {
+  form_var <- as.formula(paste(variable, "~ SurveyYear + LifeStage + LifeStage * SurveyYear"))
+  
+  #if variable ends with 'Days' or 'okaj', run Poisson model, if not, run glm model
+  if (grepl("Days$", variable) || grepl("okaj$", variable)) {
+    print(paste("Running Poisson model for:", variable))
+    model <- svyglm(form_var, family = poisson(link = "log"), design = dat.design)
+  } else {
+    print(paste("Running Linear model for:", variable))
+    model <- svyglm(form_var, design = dat.design)
+  }
+  
+  #extract p-value for children
+  modsum <- summary(model)
+  p_adult <- modsum$coefficients["SurveyYear", "Pr(>|t|)"]
+  p_adult_child_diff <- modsum$coefficients["SurveyYear:LifeStageC", "Pr(>|t|)"]
+  
+  #extract coefficients and covariance matrix (to calculate B1 + B3)
+  coefs <- coef(model)
+  cov_matrix <- vcov(model)
+  
+  #calculate effect, variance, and SE for change in children (baseline to Y11)
+  effect_child <- coefs["SurveyYear"] + coefs["SurveyYear:LifeStageC"]
+  var_child <- cov_matrix["SurveyYear", "SurveyYear"] + 
+    cov_matrix["SurveyYear:LifeStageC", "SurveyYear:LifeStageC"] + 
+    2 * cov_matrix["SurveyYear", "SurveyYear:LifeStageC"]
+  se_child <- sqrt(var_child)
+  
+  #calculate t-value and p-value for change in children
+  t_value <- effect_child / se_child
+  p_child <- 2 * (1 - pt(abs(t_value), df = df.residual(model)))
+  
+  #combine B1, B1+B3, & B3 into a one-row data frame (to merge with mean estimations)
+  peezies <- data.frame(Adult_P = p_adult, Child_P = p_child, Adult_Child_Pint = p_adult_child_diff)
+  
+  #round - got weird having 3 columns instead of 1, so had to implement this wee loop
+  for (col in colnames(peezies)) {
+    peezies[[col]] <- roundies(peezies[[col]])
+  }
+  
+  return(peezies)
+}
+runlifestage <- function(analysis) {
+  #adult
+  X <- meaniebobeanieslifestage(ListToFeed, dat, "A")
+  pvec <- character()
+  
+  for (var in ListToFeed) {
+    #get p-value for adult
+    pvalA <- pintlifestage(var, dat.design)$Adult_P
+    pvec <- c(pvec, pvalA)
+  }
+  
+  #add the column for adult p-values
+  X$pvalA <- pvec
+  
+  # Run for children
+  X1 <- meaniebobeanieslifestage(ListToFeed, dat, "C")
+  colnames(X1) <- paste0("C_", colnames(X1))
+  pvec1 <- character()
+  
+  for (var in ListToFeed) {
+    #get p-value for children
+    pvalC <- pintlifestage(var, dat.design)$Child_P
+    pvec1 <- c(pvec1, pvalC)
+  }
+  
+  #add the column for children p-values
+  X1$pvalC <- pvec1
+  
+  #combine
+  X <- cbind(X, X1)
+  
+  pvec2 <- character()
+  for (var in ListToFeed) {
+    #get p-value for adult-child interaction
+    pvalAC <- pintlifestage(var, dat.design)$Adult_Child_Pint
+    pvec2 <- c(pvec2, pvalAC)
+  }
+  
+  #add the column for adult and child difference p-values
+  X$PintAC <- pvec2
+  
+  rownames(X) <- ListToFeed
+  X <- rownames_to_column(X, var = "Meat Type")
+  colnames(X) <- gsub("\\.", " ", colnames(X))
+  #create dataframe with name
+  assign(analysis, X, envir = globalenv())
+}
+
+ListToFeed <- c("MeatDays", "avgMeatokaj", "gperokajMeat",
+                "ProcessedDays", "avgProcessedokaj", "gperokajProcessed",
+                "RedDays", "avgRedokaj", "gperokajRed",
+                "WhiteDays", "avgWhiteokaj", "gperokajWhite")
+runlifestage("sitable4c")
+rm(ListToFeed)
 
 
 
@@ -817,151 +957,9 @@ ListToFeed <- c("MeatDays", "avgMeatokaj", "gperokajMeat",
                 "ProcessedDays", "avgProcessedokaj", "gperokajProcessed",
                 "RedDays", "avgRedokaj", "gperokajRed",
                 "WhiteDays", "avgWhiteokaj", "gperokajWhite")
-sitable4c <- runeqv("sitable4c")
+sitable4c <- runeqv("sitable4d")
 rm(ListToFeed)
 
-
-#ADULTS (18+) vs. CHILDREN (<18)
-
-#modified meanies to include a lifestage parameter
-meanieslifestage <- function(Xvar, year, dataset, lifestage) {
-  dat_subset <- dataset %>% filter(SurveyYear == year & LifeStage == lifestage)
-  #replace Xvar with variable name
-  #(idk why i have to do this, but it wasn't working without it and it wouldn't
-  #let me just add the tilda to the beginning of Xvar for some reason...)
-  form_var <- as.formula(paste("~", Xvar))
-  
-  #set survey design
-  survey_design <- dat_subset %>%
-    as_survey_design(ids = serialh/area, weights = wti, strata = astrata5)
-  
-  #calculate the survey-weighted mean and SE
-  Xval <- svymean(form_var, design = survey_design, na.rm = TRUE)
-  
-  #extract mean and SE, round to one dp
-  mean_val <- round_condish(as.numeric(Xval))
-  se_val <- round_condish(sqrt(attr(Xval, "var"))) #I feel like there is a simpler way to extract SE,
-  #but couldn't figure it out so just pulling it manually
-  
-  #combine mean & SE into one column
-  mean_se_combined <- paste(mean_val, " (", se_val, ")", sep = "")
-  
-  #create a character list (to store the mean + SE values together)
-  year_values <- list()
-  year_values[[paste("Year", year)]] <- mean_se_combined
-  
-  return(year_values)
-}
-#modified meaniebobeanies to include a lifestage parameter
-meaniebobeanieslifestage <- function(var_list, dataset, lifestage) {
-  results <- data.frame()
-  for (var in var_list) {
-    combined <- numeric()
-    for (year in 1:11) {
-      year_values <- meanieslifestage(var, year, dataset, lifestage)
-      combined <- c(combined, year_values)
-    }
-    trans <- data.frame(t(combined))
-    results <- rbind(results, trans)
-  }
-  return(results)
-}
-pintlifestage <- function(variable, dat.design) {
-  form_var <- as.formula(paste(variable, "~ SurveyYear + LifeStage + LifeStage * SurveyYear"))
-  
-  #if variable ends with 'Days' or 'okaj', run Poisson model, if not, run glm model
-  if (grepl("Days$", variable) || grepl("okaj$", variable)) {
-    print(paste("Running Poisson model for:", variable))
-    model <- svyglm(form_var, family = poisson(link = "log"), design = dat.design)
-  } else {
-    print(paste("Running Linear model for:", variable))
-    model <- svyglm(form_var, design = dat.design)
-  }
-  
-  #extract p-value for children
-  modsum <- summary(model)
-  p_adult <- modsum$coefficients["SurveyYear", "Pr(>|t|)"]
-  p_adult_child_diff <- modsum$coefficients["SurveyYear:LifeStageC", "Pr(>|t|)"]
-  
-  #extract coefficients and covariance matrix (to calculate B1 + B3)
-  coefs <- coef(model)
-  cov_matrix <- vcov(model)
-  
-  #calculate effect, variance, and SE for change in children (baseline to Y11)
-  effect_child <- coefs["SurveyYear"] + coefs["SurveyYear:LifeStageC"]
-  var_child <- cov_matrix["SurveyYear", "SurveyYear"] + 
-    cov_matrix["SurveyYear:LifeStageC", "SurveyYear:LifeStageC"] + 
-    2 * cov_matrix["SurveyYear", "SurveyYear:LifeStageC"]
-  se_child <- sqrt(var_child)
-  
-  #calculate t-value and p-value for change in children
-  t_value <- effect_child / se_child
-  p_child <- 2 * (1 - pt(abs(t_value), df = df.residual(model)))
-  
-  #combine B1, B1+B3, & B3 into a one-row data frame (to merge with mean estimations)
-  peezies <- data.frame(Adult_P = p_adult, Child_P = p_child, Adult_Child_Pint = p_adult_child_diff)
-  
-  #round - got weird having 3 columns instead of 1, so had to implement this wee loop
-  for (col in colnames(peezies)) {
-    peezies[[col]] <- roundies(peezies[[col]])
-  }
-  
-  return(peezies)
-}
-runlifestage <- function(analysis) {
-  #adult
-  X <- meaniebobeanieslifestage(ListToFeed, dat, "A")
-  pvec <- character()
-  
-  for (var in ListToFeed) {
-    #get p-value for adult
-    pvalA <- pintlifestage(var, dat.design)$Adult_P
-    pvec <- c(pvec, pvalA)
-  }
-  
-  #add the column for adult p-values
-  X$pvalA <- pvec
-  
-  # Run for children
-  X1 <- meaniebobeanieslifestage(ListToFeed, dat, "C")
-  colnames(X1) <- paste0("C_", colnames(X1))
-  pvec1 <- character()
-  
-  for (var in ListToFeed) {
-    #get p-value for children
-    pvalC <- pintlifestage(var, dat.design)$Child_P
-    pvec1 <- c(pvec1, pvalC)
-  }
-  
-  #add the column for children p-values
-  X1$pvalC <- pvec1
-  
-  #combine
-  X <- cbind(X, X1)
-  
-  pvec2 <- character()
-  for (var in ListToFeed) {
-    #get p-value for adult-child interaction
-    pvalAC <- pintlifestage(var, dat.design)$Adult_Child_Pint
-    pvec2 <- c(pvec2, pvalAC)
-  }
-  
-  #add the column for adult and child difference p-values
-  X$PintAC <- pvec2
-  
-  rownames(X) <- ListToFeed
-  X <- rownames_to_column(X, var = "Meat Type")
-  colnames(X) <- gsub("\\.", " ", colnames(X))
-  #create dataframe with name
-  assign(analysis, X, envir = globalenv())
-}
-
-ListToFeed <- c("MeatDays", "avgMeatokaj", "gperokajMeat",
-                "ProcessedDays", "avgProcessedokaj", "gperokajProcessed",
-                "RedDays", "avgRedokaj", "gperokajRed",
-                "WhiteDays", "avgWhiteokaj", "gperokajWhite")
-runlifestage("sitable4d")
-rm(ListToFeed)
 
 ######################ST TABLE 5 - decomp values#########################
 
