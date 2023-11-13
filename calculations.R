@@ -78,6 +78,41 @@ survey_design <- dat %>%
 
 
 
+
+###################SANDBOX######################
+
+play <- dat %>% filter(DiaryDaysCompleted >= 4)
+
+# Define the variables of interest
+variables_of_interest <- c("MeatDays", "avgMeatokaj", "gperokajMeat",
+                           "ProcessedDays", "avgProcessedokaj", "gperokajProcessed",
+                           "RedDays", "avgRedokaj", "gperokajRed",
+                           "WhiteDays", "avgWhiteokaj", "gperokajWhite",
+                           "NoMeatDays")
+
+# Function to calculate means for a given SurveyYear
+calculate_means <- function(data, year) {
+  data %>%
+    filter(SurveyYear == year) %>%
+    summarise(across(all_of(variables_of_interest), ~ mean(., na.rm = TRUE))) %>%
+    pivot_longer(everything(), names_to = "Variable", values_to = "Mean")
+}
+
+# Calculate means for SurveyYear 1 and 11
+means_year_1 <- calculate_means(play, 1)
+means_year_11 <- calculate_means(play, 11)
+
+# Combine the results into one table
+combined_means <- left_join(means_year_1, means_year_11, by = "Variable", suffix = c("_Year1", "_Year11"))
+
+openxlsx::write.xlsx(combined_means, "~/Desktop/combined_means.xlsx")
+
+
+mean(play$sumMeatg)
+mean(play$sumProcessedg+play$sumRedg+play$sumWhiteg)
+
+
+
 #####################TABLE 1 - demographic analysis #######################
 #rounding conditional statement (2 decimals for small numbers, 1 for large numbers)
 round_condish <- function(x) {

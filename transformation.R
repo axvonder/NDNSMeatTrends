@@ -97,7 +97,7 @@ table(dat$itemMixedMeat)
 table(dat$itemContainMeat)
 #create singular "meat type" variable
 #ONLY for meat items that have ONE meat type. Mixed meat items will remain unclassified (-99)
-#Unclassified, mixed meat items, n = 3,566
+#Unclassified, mixed meat items, n = 3,566 (4.1%)
 #0 = no meat, 1 = processed meat, 2 = unprocessed red meat, 3 = unprocessed white meat
 dat$itemMeatType <- case_when(
   dat$itemContainNoMeat == 1 ~ 0,
