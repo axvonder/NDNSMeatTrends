@@ -75,15 +75,16 @@ dat.design <-
 #specify survey weighting structure for cross-sectional analysis (weighted means by year)
 survey_design <- dat %>%
   as_survey_design(ids = serialh/area, weights = wti, strata = astrata5)
-options(survey.lonely.psu = "adjust") #adjust the degrees of freedom for strata with a single PSU
+
+
 
 #####################TABLE 1 - demographic analysis #######################
-#rounding conditional statement (2 decimals for small numbers, 2 for large numbers - set up to be changeable if desired)
+#rounding conditional statement (2 decimals for small numbers, 1 for large numbers)
 round_condish <- function(x) {
-  ifelse(x >= 10, round(x, 2), round(x, 2))
+  ifelse(x >= 10, round(x, 1), round(x, 2))
 }
 #create empty data frames to hold results
-results_ageg <- data.frame(characteristic = unique(dat$LifeStage))
+results_ageg <- data.frame(characteristic = unique(dat$AgeG))
 results_sex <- data.frame(characteristic = unique(dat$Sex))
 results_eqv <- data.frame(characteristic = unique(dat$eqv))
 
@@ -115,14 +116,14 @@ demographic <- function(dataset, group_var, results_df) {
   
   return(results)
 }
-#perform the analysis for LifeStage, Sex, and eqv
-results_ageg <- demographic(dat, "LifeStage", results_ageg)
+#perform the analysis for AgeG, Sex, and eqv
+results_ageg <- demographic(dat, "AgeG", results_ageg)
 results_sex <- demographic(dat, "Sex", results_sex)
 results_eqv <- demographic(dat, "eqv", results_eqv)
 
 #rename characteristic column for display purposes in table and arrange rows
-results_ageg$characteristic <- recode(results_ageg$characteristic, "C" = "Children (<18)", "A" = "Adults (≥18)")
-ordered_levels_ageg <- c("Children (<18)", "Adults (≥18)")
+results_ageg$characteristic <- recode(results_ageg$characteristic, "1" = "≤10", "2" = "11–17", "3" = "18–40", "4" = "41–59", "5" = "≥60")
+ordered_levels_ageg <- c("≤10", "11–17", "18–40", "41–59", "≥60")
 results_ageg <- results_ageg %>% arrange(match(characteristic, ordered_levels_ageg))
 
 results_sex$characteristic <- recode(results_sex$characteristic, "M" = "Male", "F" = "Female")
@@ -150,7 +151,7 @@ rm(final_results, results_ageg, results_sex, results_eqv,
 
 #################SI TABLE 1 - demographic analysis year by year#############
 #create empty data frames to hold results
-results_ageg <- data.frame(characteristic = unique(dat$LifeStage))
+results_ageg <- data.frame(characteristic = unique(dat$AgeG))
 results_sex <- data.frame(characteristic = unique(dat$Sex))
 results_eqv <- data.frame(characteristic = unique(dat$eqv))
 
@@ -189,14 +190,14 @@ demo_yearby <- function(dataset, group_var, results_df) {
   return(results)
 }
 
-#perform the analysis for LifeStage, Sex, and eqv
-results_ageg <- demo_yearby(dat, "LifeStage", results_ageg)
+#perform the analysis for AgeG, Sex, and eqv
+results_ageg <- demo_yearby(dat, "AgeG", results_ageg)
 results_sex <- demo_yearby(dat, "Sex", results_sex)
 results_eqv <- demo_yearby(dat, "eqv", results_eqv)
 
 #rename characteristic column for display purposes in table and arrange rows
-results_ageg$characteristic <- recode(results_ageg$characteristic, "C" = "Children (<18)", "A" = "Adults (≥18)")
-ordered_levels_ageg <- c("Children (<18)", "Adults (≥18)")
+results_ageg$characteristic <- recode(results_ageg$characteristic, "1" = "≤10", "2" = "11–17", "3" = "18–40", "4" = "41–59", "5" = "≥60")
+ordered_levels_ageg <- c("≤10", "11–17", "18–40", "41–59", "≥60")
 results_ageg <- results_ageg %>% arrange(match(characteristic, ordered_levels_ageg))
 
 results_sex$characteristic <- recode(results_sex$characteristic, "M" = "Male", "F" = "Female")
@@ -220,41 +221,7 @@ rm(final_results, results_ageg, results_sex, results_eqv,
    ordered_levels_ageg, ordered_levels_sex, ordered_levels_eqv,
    demo_yearby)
 
-#############SI TABLE 2###################
-meat_types <- c("Total Meat", "Processed Meat", "Red Meat", "White Meat")
-sitable2 <- data.frame(matrix(ncol = 12, nrow = 4))
-colnames(sitable2) <- c("Meat Type", paste0("Year", 1:11))
-rownames(sitable2) <- meat_types
-sitable2$`Meat Type` <- meat_types
-
-meatavgs <- function(year) {
-  meat_columns <- c("sumMeatg", "sumProcessedg", "sumRedg", "sumWhiteg") # Replace with actual column names
-  
-  sapply(meat_columns, function(meat_column) {
-    survey_design %>%
-      filter(SurveyYear == year) %>%
-      summarize(weighted_mean = survey_mean(!!sym(meat_column), na.rm = TRUE)) %>%
-      pull(weighted_mean)
-  })
-}
-
-for (year in 1:11) {
-  sitable2[paste0("Year", year)] <- meatavgs(year)
-}
-#set variables per day (divide by 4) and apply rounding condition
-sitable2[, -1] <- apply(sitable2[, -1] / 4, 2, round_condish)
-#checked that the sum of all sub meat types add up to their respective total meat amount for each year
-
-#############################TABLE 2 - main analysis (also SI table 3) ###################
-#calculate number of participants who are meat consumers, and consumers of each subtype of meat
-dat %>%
-  filter(wti > 0) %>%
-  summarize(
-    meatppl = sum(sumMeatg > 0, na.rm = TRUE),
-    processedppl = sum(sumProcessedg > 0, na.rm = TRUE),
-    redppl = sum(sumRedg > 0, na.rm = TRUE),
-    whiteppl = sum(sumWhiteg > 0, na.rm = TRUE),
-    noppl = sum(sumMeatg == 0, na.rm = TRUE))
+#############################TABLE 2 - main analysis (also SI table 2) ###################
 #function to calculate mean and SE
 meanies <- function(Xvar, year, dataset) {
   #replace Xvar with variable name
@@ -326,8 +293,8 @@ roundies <- function(p_value) {
 ptrend <- function(variable, dat.design) {
   form_var <- as.formula(paste(variable, "~ SurveyYear"))
   
-  #if variable ends with 'Days', run Poisson model, if not, run glm model
-  if (grepl("Days$", variable)) {
+  #if variable ends with 'Days' or 'okaj', run Poisson model, if not, run glm model
+  if (grepl("Days$", variable) || grepl("okaj$", variable)) {
     print(paste("Running Poisson model for:", variable)) #check for correct model
     model <- svyglm(form_var, family=poisson(link = "log"), design = dat.design)
   } else {
@@ -365,20 +332,20 @@ ListToFeed <- c("MeatDays", "avgMeatokaj", "gperokajMeat",
                 "RedDays", "avgRedokaj", "gperokajRed",
                 "WhiteDays", "avgWhiteokaj", "gperokajWhite",
                 "NoMeatDays")
-run("sitable3")
-table2 <- sitable3[, c("Meat Type", "Year 1", "Year 11", "P for trend")]
+run("sitable2")
+table2 <- sitable2[, c("Meat Type", "Year 1", "Year 11", "P for trend")]
 rm(ListToFeed)
 
 
-#########################SI TABLE 4 - STM ANALYSIS########################
+#########################SI TABLE 3 - STM ANALYSIS########################
 
 ListToFeed <- c("BsumMeatg", "BsumProcessedg", "BsumRedg", "BsumWhiteg",
                 "LsumMeatg", "LsumProcessedg", "LsumRedg", "LsumWhiteg",
                 "DsumMeatg", "DsumProcessedg", "DsumRedg", "DsumWhiteg")
-run("sitable4")
+run("sitable3")
 rm(ListToFeed)
 
-##########################SI TABLE 5 - analysis by covariates########################
+##########################SI TABLE 4 - analysis by covariates########################
 
 #modified meanies to include a sex parameter
 meaniessex <- function(Xvar, year, dataset, sex) {
@@ -426,8 +393,8 @@ meaniebobeaniessex <- function(var_list, dataset, sex) {
 pintsex <- function(variable, dat.design) {
   form_var <- as.formula(paste(variable, "~ SurveyYear + Sex + SurveyYear * Sex"))
   
-  #if variable ends with 'Days', run Poisson model, if not, run glm model
-  if (grepl("Days$", variable)) {
+  #if variable ends with 'Days' or 'okaj', run Poisson model, if not, run glm model
+  if (grepl("Days$", variable) || grepl("okaj$", variable)) {
     print(paste("Running Poisson model for:", variable))
     model <- svyglm(form_var, family = poisson(link = "log"), design = dat.design)
   } else {
@@ -517,8 +484,179 @@ ListToFeed <- c("MeatDays", "avgMeatokaj", "gperokajMeat",
                 "ProcessedDays", "avgProcessedokaj", "gperokajProcessed",
                 "RedDays", "avgRedokaj", "gperokajRed",
                 "WhiteDays", "avgWhiteokaj", "gperokajWhite")
-runsex("sitable5a")
+runsex("sitable4a")
 rm(ListToFeed)
+
+
+
+
+#modified meanies to include an age parameter
+meaniesage <- function(Xvar, year, dataset, age) {
+  dat_subset <- dataset %>% filter(SurveyYear == year & AgeG == age)
+  #replace Xvar with variable name
+  #(idk why i have to do this, but it wasn't working without it and it wouldn't
+  #let me just add the tilda to the beginning of Xvar for some reason...)
+  form_var <- as.formula(paste("~", Xvar))
+  
+  #set survey design
+  survey_design <- dat_subset %>%
+    as_survey_design(ids = serialh/area, weights = wti, strata = astrata5)
+  
+  #calculate the survey-weighted mean and SE
+  Xval <- svymean(form_var, design = survey_design, na.rm = TRUE)
+  
+  #extract mean and SE, round to one dp
+  mean_val <- round_condish(as.numeric(Xval))
+  se_val <- round_condish(sqrt(attr(Xval, "var"))) #I feel like there is a simpler way to extract SE,
+  #but couldn't figure it out so just pulling it manually
+  
+  #combine mean & SE into one column
+  mean_se_combined <- paste(mean_val, " (", se_val, ")", sep = "")
+  
+  #create a character list (to store the mean + SE values together)
+  year_values <- list()
+  year_values[[paste("Year", year)]] <- mean_se_combined
+  
+  return(year_values)
+}
+#modified meaniebobeanies to include a age parameter
+meaniebobeaniesage <- function(var_list, dataset, age) {
+  results <- data.frame()
+  for (var in var_list) {
+    combined <- numeric()
+    for (year in 1:11) {
+      year_values <- meaniesage(var, year, dataset, age)
+      combined <- c(combined, year_values)
+    }
+    trans <- data.frame(t(combined))
+    results <- rbind(results, trans)
+  }
+  return(results)
+}
+pintage <- function(variable, dat.design) {
+  form_var <- as.formula(paste(variable, "~ SurveyYear + AgeG + SurveyYear * AgeG"))
+  #if variable ends with 'Days' or 'okaj', run Poisson model, if not, run glm model
+  if (grepl("Days$", variable) || grepl("okaj$", variable)) {
+    print(paste("Running Poisson model for:", variable))
+    model <- svyglm(form_var, family = poisson(link = "log"), design = dat.design)
+  } else {
+    print(paste("Running Linear model for:", variable))
+    model <- svyglm(form_var, design = dat.design)
+  }
+  #extract p-value for <18-40 (ref)
+  modsum <- summary(model)
+  p_18 <- modsum$coefficients["SurveyYear", "Pr(>|t|)"]
+  p_18_10diff <- modsum$coefficients["SurveyYear:AgeG1", "Pr(>|t|)"]
+  p_18_11diff <- modsum$coefficients["SurveyYear:AgeG2", "Pr(>|t|)"]
+  p_18_41diff <- modsum$coefficients["SurveyYear:AgeG4", "Pr(>|t|)"]
+  p_18_60diff <- modsum$coefficients["SurveyYear:AgeG5", "Pr(>|t|)"]
+  #extract coefficients and covariance matrix (to calculate pvals for )
+  coefs <- coef(model)
+  cov_matrix <- vcov(model)
+  
+  age_groups <- c("AgeG1", "AgeG2", "AgeG4", "AgeG5")
+  
+  p_age_list <- list()
+  
+  for (age_group in age_groups) {
+    effect_age <- coefs["SurveyYear"] + coefs[paste0("SurveyYear:", age_group)]
+    var_age <- cov_matrix["SurveyYear", "SurveyYear"] + 
+      cov_matrix[paste0("SurveyYear:", age_group), paste0("SurveyYear:", age_group)] + 
+      2 * cov_matrix["SurveyYear", paste0("SurveyYear:", age_group)]
+    se_age <- sqrt(var_age)
+    t_value <- effect_age / se_age
+    p_ageX <- 2 * (1 - pt(abs(t_value), df = df.residual(model)))
+    p_age_list[[age_group]] <- p_ageX
+  }
+  
+  peezies <- data.frame(p_18 = p_18, p_18_10diff = p_18_10diff, p_18_11diff = p_18_11diff,
+                        p_18_41diff = p_18_41diff, p_18_60diff = p_18_60diff,
+                        p_10 = p_age_list$AgeG1, p_11 = p_age_list$AgeG2,
+                        p_41 = p_age_list$AgeG4, p_60 = p_age_list$AgeG5)
+  
+  for (col in colnames(peezies)) {
+    peezies[[col]] <- roundies(peezies[[col]])
+  }
+  
+  return(peezies)
+}
+runage <- function(analysis) {
+  
+  options(survey.lonely.psu="adjust") #something wrong with age group 5 PSUs, idk but this fixed it i think haha
+  
+  X <- list()
+  
+  age_groups <- list("3", "1", "2", "4", "5")
+  pval_cols <- c("p_18", "p_10", "p_11", "p_41", "p_60")
+  pval_diffs <- c(NULL, "p_18_10diff", "p_18_11diff", "p_18_41diff", "p_18_60diff")
+  
+  for (i in seq_along(age_groups)) {
+    age_group <- age_groups[[i]]
+
+    X_temp <- meaniebobeaniesage(ListToFeed, dat, age_group) #add means
+    
+    names(X_temp)[names(X_temp) == "Year.1"] <- paste0("Year.1_age", age_group) #add age group to col 1
+    
+    pvec <- character()
+    
+    for (var in ListToFeed) {#Get p-values and p-interaction values
+      pval <- pintage(var, dat.design)[[pval_cols[i]]]
+      pvec <- c(pvec, pval)
+    }
+    
+    colname <- paste0("pval", sub("^3$", "18", age_group))
+    X_temp[[colname]] <- pvec
+    
+    colnames(X_temp)[-1] <- paste0(colnames(X_temp)[-1], "_age", age_group) #rename columns
+    
+    X[[age_group]] <- X_temp
+    
+    
+    if (!is.null(pval_diffs[i]) && !is.na(pval_diffs[i])) {
+      pvec_diff <- character()
+      for (var in ListToFeed) {
+        pval_diff <- pintage(var, dat.design)[[pval_diffs[i]]]
+        pvec_diff <- c(pvec_diff, pval_diff)
+      }
+      
+      #if pvec_diff is empty, assign NA to the column (idk, this just helped it run)
+      if (length(pvec_diff) == 0) {
+        pvec_diff <- rep(NA, nrow(X[[age_group]]))
+      }
+      
+      X[[age_group]][[pval_diffs[i]]] <- pvec_diff
+    }
+  }
+  #combine 
+  result <- Reduce(function(x, y) cbind(x, y), X)
+  rownames(result) <- ListToFeed
+  result <- rownames_to_column(result, var = "Meat Type")
+  colnames(result) <- gsub("\\.", "_", colnames(result))
+  
+  #define column order (couldn't think of an 'automated' way to do this, so i just listed it in the order i wanted haha)
+  ordered_cols <- c("Meat Type", 
+                    "Year_1_age3",  "Year_2_age3",  "Year_3_age3",  "Year_4_age3",  "Year_5_age3",  "Year_6_age3", 
+                    "Year_7_age3",  "Year_8_age3",  "Year_9_age3",  "Year_10_age3", "Year_11_age3", "pval18_age3", 
+                    "Year_1_age1",  "Year_2_age1",  "Year_3_age1",  "Year_4_age1",  "Year_5_age1",  "Year_6_age1",  
+                    "Year_7_age1",  "Year_8_age1",  "Year_9_age1",  "Year_10_age1", "Year_11_age1", "pval1_age1", "p_18_10diff", 
+                    "Year_1_age2",  "Year_2_age2",  "Year_3_age2",  "Year_4_age2",  "Year_5_age2",  "Year_6_age2",  
+                    "Year_7_age2",  "Year_8_age2",  "Year_9_age2",  "Year_10_age2", "Year_11_age2", "pval2_age2", "p_18_11diff",
+                    "Year_1_age4",  "Year_2_age4",  "Year_3_age4",  "Year_4_age4",  "Year_5_age4",  "Year_6_age4",  
+                    "Year_7_age4",  "Year_8_age4",  "Year_9_age4",  "Year_10_age4", "Year_11_age4", "pval4_age4", "p_18_41diff",
+                    "Year_1_age5",  "Year_2_age5",  "Year_3_age5",  "Year_4_age5",  "Year_5_age5",  "Year_6_age5",  
+                    "Year_7_age5",  "Year_8_age5",  "Year_9_age5",  "Year_10_age5", "Year_11_age5", "pval5_age5", "p_18_60diff")
+  
+  result <- result[, ordered_cols]
+  return(result)
+}
+
+ListToFeed <- c("MeatDays", "avgMeatokaj", "gperokajMeat",
+                "ProcessedDays", "avgProcessedokaj", "gperokajProcessed",
+                "RedDays", "avgRedokaj", "gperokajRed",
+                "WhiteDays", "avgWhiteokaj", "gperokajWhite")
+sitable4b <- runage("sitable4b")
+rm(ListToFeed)
+
 
 
 #ADULTS (18+) vs. CHILDREN (<18)
@@ -569,8 +707,8 @@ meaniebobeanieslifestage <- function(var_list, dataset, lifestage) {
 pintlifestage <- function(variable, dat.design) {
   form_var <- as.formula(paste(variable, "~ SurveyYear + LifeStage + LifeStage * SurveyYear"))
   
-  #if variable ends with 'Days', run Poisson model, if not, run glm model
-  if (grepl("Days$", variable)) {
+  #if variable ends with 'Days' or 'okaj', run Poisson model, if not, run glm model
+  if (grepl("Days$", variable) || grepl("okaj$", variable)) {
     print(paste("Running Poisson model for:", variable))
     model <- svyglm(form_var, family = poisson(link = "log"), design = dat.design)
   } else {
@@ -660,7 +798,7 @@ ListToFeed <- c("MeatDays", "avgMeatokaj", "gperokajMeat",
                 "ProcessedDays", "avgProcessedokaj", "gperokajProcessed",
                 "RedDays", "avgRedokaj", "gperokajRed",
                 "WhiteDays", "avgWhiteokaj", "gperokajWhite")
-runlifestage("sitable5b")
+runlifestage("sitable4c")
 rm(ListToFeed)
 
 
@@ -711,8 +849,8 @@ meaniebobeanieseqv <- function(var_list, dataset, schmoney) {
 
 pinteqv <- function(variable, dat.design) {
   form_var <- as.formula(paste(variable, "~ SurveyYear + eqv + SurveyYear * eqv"))
-  #if variable ends with 'Days', run Poisson model, if not, run glm model
-  if (grepl("Days$", variable)) {
+  #if variable ends with 'Days' or 'okaj', run Poisson model, if not, run glm model
+  if (grepl("Days$", variable) || grepl("okaj$", variable)) {
     print(paste("Running Poisson model for:", variable))
     model <- svyglm(form_var, family = poisson(link = "log"), design = dat.design)
   } else {
@@ -819,12 +957,11 @@ ListToFeed <- c("MeatDays", "avgMeatokaj", "gperokajMeat",
                 "ProcessedDays", "avgProcessedokaj", "gperokajProcessed",
                 "RedDays", "avgRedokaj", "gperokajRed",
                 "WhiteDays", "avgWhiteokaj", "gperokajWhite")
-sitable5c <- runeqv("sitable5c")
+sitable4c <- runeqv("sitable4d")
 rm(ListToFeed)
 
 
-
-######################ST TABLE 6 - decomp values#########################
+######################ST TABLE 5 - decomp values#########################
 
 #create function to extract values to go into decomp
 decompsies <- function(meatvar, year, design = survey_design) {
@@ -880,7 +1017,7 @@ for(meat in meattypes) {
   )
 }
 #transform into data frame
-sitable6 <- do.call(rbind, results)
+sitable5 <- do.call(rbind, results)
 #decomposition for population subgroups
 decompsub <- function(meatvar, year, subvar, varlvl, design = survey_design) {
   form <- as.formula(paste0("~", meatvar))
@@ -933,25 +1070,21 @@ for(subvar in c("Sex", "LifeStage", "eqv")) {
 # Transform into data frame
 ph <- do.call(rbind, results)
 #combine ph into sitable5
-sitable6 <- rbind(sitable6, ph)
+sitable5 <- rbind(sitable5, ph)
 #round and convert to percent (from proportion)
-sitable6 <- sitable6 %>%
+sitable5 <- sitable5 %>%
   mutate(across(everything(), ~ round(.x, digits = 2)))
 rm(ph, results)
-sitable6 <- sitable6 %>% tibble::rownames_to_column(var = "Meat Type")
-
-
-
-
+sitable5 <- sitable5 %>% tibble::rownames_to_column(var = "Meat Type")
 
 
 
 ########################EXPORT TABLES TO EXCEL#####################
 omegatable <- list("Table 1" = table1, "Table 2" = table2, 
                    "SI Table 1" = sitable1, "SI Table 2" = sitable2, 
-                   "SI Table 3" = sitable3, "SI Table 4" = sitable4, 
-                   "SI Table 5a" = sitable5a, "SI Table 5b" = sitable5b,
-                   "SI Table 5c" = sitable5c, "SI Table 6" = sitable6)
+                   "SI Table 3" = sitable3, "SI Table 4a" = sitable4a, 
+                   "SI Table 4b" = sitable4b, "SI Table 4c" = sitable4c,
+                   "SI Table 4d" = sitable4d, "SI Table 5" = sitable5)
 wb <- createWorkbook() #create excel workbook
 for (sheet_name in names(omegatable)) {
   addWorksheet(wb, sheetName = sheet_name)
