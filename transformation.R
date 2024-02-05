@@ -73,6 +73,10 @@ trim <- ult[ , -which(names(ult) %in% c("CoreBoost", "DiaryDate", "MealTimeDescr
                                         "Nonmilkextrinsicsugarsg", "Intrinsicandmilksugarsg",
                                         "FreeSugars", "Englystfibreg"))]
 dat <- trim
+
+####EXAMPLE
+ZZZ <- dat[dat$Burgersg>0, ]
+
 #add variable for "item contains [type] meat"
 dat$itemContainProcessed <- as.integer(rowSums(dat[, c("ProcessedRedMeatg",
                                                        "ProcessedPoultryg",
