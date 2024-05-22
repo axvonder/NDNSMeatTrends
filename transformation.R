@@ -73,10 +73,6 @@ trim <- ult[ , -which(names(ult) %in% c("CoreBoost", "DiaryDate", "MealTimeDescr
                                         "Nonmilkextrinsicsugarsg", "Intrinsicandmilksugarsg",
                                         "FreeSugars", "Englystfibreg"))]
 dat <- trim
-
-####EXAMPLE
-ZZZ <- dat[dat$Burgersg>0, ]
-
 #add variable for "item contains [type] meat"
 dat$itemContainProcessed <- as.integer(rowSums(dat[, c("ProcessedRedMeatg",
                                                        "ProcessedPoultryg",
@@ -415,6 +411,105 @@ dat <- dat %>%
        DsumMeatg, totProcessedokaj, totRedokaj, totWhiteokaj, totMeatokaj, totNoMeatokaj,
        Btotokaj, Ltotokaj, Dtotokaj,
        .direction = "up")
+#only 1 row per participant
+dat <- dat %>%
+  #only unique IDs
+  distinct(seriali, .keep_all = TRUE)
+#create an avg meat occasions per meat-eating day variable
+dat <- dat %>%
+  mutate(avgProcessedokaj = if_else(ProcessedDays > 0, totProcessedokaj/ProcessedDays, 0)) %>%
+  mutate(avgRedokaj = if_else(RedDays > 0, totRedokaj/RedDays, 0)) %>%
+  mutate(avgWhiteokaj = if_else(WhiteDays > 0, totWhiteokaj/WhiteDays, 0)) %>%
+  mutate(avgMeatokaj = if_else(MeatDays > 0, totMeatokaj/MeatDays, 0))
+#create variable for avg (across all days) g per meat category per corresponding meat occasion
+dat <- dat %>%
+  mutate(gperokajProcessed = (sumProcessedg/totProcessedokaj)) %>%
+  mutate(gperokajRed = (sumRedg/totRedokaj)) %>%
+  mutate(gperokajWhite = (sumWhiteg/totWhiteokaj)) %>%
+  mutate(gperokajMeat = (sumMeatg/totMeatokaj))
+#create variable for avg g of meat consumed per day
+dat <- dat %>%
+  mutate(sumMeatgdaily = sumMeatg/DiaryDaysCompleted) %>%
+  mutate(sumProcessedgdaily = sumProcessedg/DiaryDaysCompleted) %>%
+  mutate(sumRedgdaily = sumRedg/DiaryDaysCompleted) %>%
+  mutate(sumWhitegdaily = sumWhiteg/DiaryDaysCompleted)
+#Keep only necessary variables
+final <- dat[ , which(names(dat) %in% c("seriali", "SurveyYear", "Sex", "Country",
+                                        "DiaryDaysCompleted", "Age", "ProcessedDays",
+                                        "RedDays", "WhiteDays", "MeatDays", "NoMeatDays",
+                                        "okajTotalGrams", "okajperday", "BProcessedokaj",
+                                        "BRedokaj", "BWhiteokaj", "BMeatokaj",
+                                        "BNoMeatokaj", "BsumProcessedg", "BsumRedg",
+                                        "BsumWhiteg", "BsumMeatg", "LProcessedokaj",
+                                        "LRedokaj", "LWhiteokaj", "LMeatokaj",
+                                        "LNoMeatokaj", "LsumProcessedg", "LsumRedg",
+                                        "LsumWhiteg", "LsumMeatg", "DProcessedokaj",
+                                        "DRedokaj", "DWhiteokaj", "DMeatokaj",
+                                        "DNoMeatokaj", "DsumProcessedg", "DsumRedg",
+                                        "DsumWhiteg", "DsumMeatg", "avgProcessedokaj",
+                                        "avgRedokaj", "avgWhiteokaj", "avgMeatokaj",
+                                        "avgNoMeatokaj", "okajProcessedperc", "okajRedperc",
+                                        "okajWhiteperc", "okajMeatperc", "okajNoMeatperc",
+                                        "gperokajProcessed", "gperokajRed", "gperokajWhite",
+                                        "gperokajMeat", "sumMeatg", "sumProcessedg",
+                                        "sumRedg", "sumWhiteg",
+                                        "BokajGrams", "LokajGrams", "DokajGrams",
+                                        "Btotokaj", "Ltotokaj", "Dtotokaj",
+                                        "sumMeatgdaily", "sumProcessedgdaily",
+                                        "sumRedgdaily", "sumWhitegdaily",
+                                        "totProcessedokaj", "totRedokaj", "totMeatokaj", "totWhiteokaj"))]
+#write data to dataset
+write.csv(final,"/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data/final.csv", row.names = F)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+###CHECKS###
+
 #look at distribution of meat occasions
 # Filter for non-zero meat consumption
 test <- dat %>%
@@ -464,51 +559,6 @@ total_consumption <- total_consumption %>%
 
 # Print the proportion of total consumption for each meal block
 print(total_consumption)
-
-#only 1 row per participant
-dat <- dat %>%
-  #only unique IDs
-  distinct(seriali, .keep_all = TRUE)
-#create an avg meat occasions per day variable
-dat <- dat %>%
-  mutate(avgProcessedokaj = totProcessedokaj/DiaryDaysCompleted) %>%
-  mutate(avgRedokaj = totRedokaj/DiaryDaysCompleted) %>%
-  mutate(avgWhiteokaj = totWhiteokaj/DiaryDaysCompleted) %>%
-  mutate(avgMeatokaj = totMeatokaj/DiaryDaysCompleted) %>%
-  mutate(avgNoMeatokaj = totNoMeatokaj/DiaryDaysCompleted)
-#create variable for avg (across all days) g per meat category per corresponding meat occasion
-dat <- dat %>%
-  mutate(gperokajProcessed = (sumProcessedg/totProcessedokaj)) %>%
-  mutate(gperokajRed = (sumRedg/totRedokaj)) %>%
-  mutate(gperokajWhite = (sumWhiteg/totWhiteokaj)) %>%
-  mutate(gperokajMeat = (sumMeatg/totMeatokaj))
-#Keep only necessary variables
-final <- dat[ , which(names(dat) %in% c("seriali", "SurveyYear", "Sex", "Country",
-                                        "DiaryDaysCompleted", "Age", "ProcessedDays",
-                                        "RedDays", "WhiteDays", "MeatDays", "NoMeatDays",
-                                        "okajTotalGrams", "okajperday", "BProcessedokaj",
-                                        "BRedokaj", "BWhiteokaj", "BMeatokaj",
-                                        "BNoMeatokaj", "BsumProcessedg", "BsumRedg",
-                                        "BsumWhiteg", "BsumMeatg", "LProcessedokaj",
-                                        "LRedokaj", "LWhiteokaj", "LMeatokaj",
-                                        "LNoMeatokaj", "LsumProcessedg", "LsumRedg",
-                                        "LsumWhiteg", "LsumMeatg", "DProcessedokaj",
-                                        "DRedokaj", "DWhiteokaj", "DMeatokaj",
-                                        "DNoMeatokaj", "DsumProcessedg", "DsumRedg",
-                                        "DsumWhiteg", "DsumMeatg", "avgProcessedokaj",
-                                        "avgRedokaj", "avgWhiteokaj", "avgMeatokaj",
-                                        "avgNoMeatokaj", "okajProcessedperc", "okajRedperc",
-                                        "okajWhiteperc", "okajMeatperc", "okajNoMeatperc",
-                                        "gperokajProcessed", "gperokajRed", "gperokajWhite",
-                                        "gperokajMeat", "sumMeatg", "sumProcessedg",
-                                        "sumRedg", "sumWhiteg",
-                                        "BokajGrams", "LokajGrams", "DokajGrams",
-                                        "Btotokaj", "Ltotokaj", "Dtotokaj"))]
-#write data to dataset
-write.csv(final,"/Users/alexandervonderschmidt/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofEdinburgh/NDNS Meat Trends - General/Data/final.csv", row.names = F)
-
-
-
 
 
 
