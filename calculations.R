@@ -429,15 +429,90 @@ ListToFeed <- c("BsumMeatg", "BsumProcessedg", "BsumRedg", "BsumWhiteg",
 run("sitable4")
 rm(ListToFeed)
 
-##########################SI TABLE 5 - analysis by covariates########################
+##########################SI TABLE 5 - analysis by covariates#######################
+
+# Calculate proportion of participants who are meat consumers for each meat subtype by sex
+weighted_props_m <- svyby(~I(sumMeatg > 0) + I(sumProcessedg > 0) + I(sumRedg > 0) + I(sumWhiteg > 0),
+                          ~SurveyYear + Sex, 
+                          subset(survey_design, Sex == "M"), 
+                          svymean, 
+                          na.rm = TRUE)
+
+weighted_props_f <- svyby(~I(sumMeatg > 0) + I(sumProcessedg > 0) + I(sumRedg > 0) + I(sumWhiteg > 0),
+                          ~SurveyYear + Sex, 
+                          subset(survey_design, Sex == "F"), 
+                          svymean, 
+                          na.rm = TRUE)
+
+# Select only the columns ending with "TRUE" and rename them
+cols_to_keep_m <- c("PropMeat_M", "PropProcessed_M", "PropRed_M", "PropWhite_M",
+                  "PropMeatSE_M", "PropProcessedSE_M", "PropRedSE_M", "PropWhiteSE_M")
+cols_to_keep_f <- c("PropMeat_F", "PropProcessed_F", "PropRed_F", "PropWhite_F",
+                    "PropMeatSE_F", "PropProcessedSE_F", "PropRedSE_F", "PropWhiteSE_F")
+
+weighted_props_m <- weighted_props_m %>%
+  dplyr::select(ends_with("TRUE")) %>%
+  setNames(cols_to_keep_m)
+
+weighted_props_f <- weighted_props_f %>%
+  dplyr::select(ends_with("TRUE")) %>%
+  setNames(cols_to_keep_f)
+
+# Transpose and prepare formatted output
+PropsM <- as.data.frame(t(weighted_props_m))
+PropsM <- rownames_to_column(PropsM, var = "MeatType")
+PropsM[1:8, -1] <- round(PropsM[1:8, -1] * 100, 2)
+PropsFormattedM <- PropsM[1:4, ]
+for (i in 1:nrow(PropsFormattedM)) {
+  for (j in 2:ncol(PropsFormattedM)) {
+    PropsFormattedM[i, j] <- paste0(PropsM[i, j], " (", PropsM[i + 4, j], ")")
+  }
+}
+colnames(PropsFormattedM)[-1] <- paste0("Year ", colnames(PropsFormattedM)[-1])
+
+PropsF <- as.data.frame(t(weighted_props_f))
+PropsF <- rownames_to_column(PropsF, var = "MeatType")
+PropsF[1:8, -1] <- round(PropsF[1:8, -1] * 100, 2)
+PropsFormattedF <- PropsF[1:4, ]
+for (i in 1:nrow(PropsFormattedF)) {
+  for (j in 2:ncol(PropsFormattedF)) {
+    PropsFormattedF[i, j] <- paste0(PropsF[i, j], " (", PropsF[i + 4, j], ")")
+  }
+}
+colnames(PropsFormattedF)[-1] <- paste0("Year ", colnames(PropsFormattedF)[-1])
+PropsFormattedM$MeatType <- gsub("_M$", "", PropsFormattedM$MeatType)
+PropsFormattedF$MeatType <- gsub("_F$", "", PropsFormattedF$MeatType)
+
+# Combine Male and Female data into one dataset, ensure correct merging
+weighted_props_m$SurveyYear <- 1:nrow(weighted_props_m) #add a "survey year" variable (to integrate into main dataset for analysis)
+weighted_props_f$SurveyYear <- 1:nrow(weighted_props_f) #add a "survey year" variable (to integrate into main dataset for analysis)
+weighted_props <- merge(weighted_props_m, weighted_props_f, by = "SurveyYear", all = TRUE)
+dat <- merge(dat, weighted_props, by = "SurveyYear", all.x = TRUE)
+
+# Re-specify the survey design with new proportion variables
+dat.design <-
+  svydesign(
+    id = ~serialh/area,  # multi-level cluster of households and PSUs
+    strata = ~astrata5,  # stratification by district
+    data = dat,
+    weights = ~wti,  # NDNS-assigned survey weight
+    nest = TRUE
+  )
+
+
+
+
 
 #modified meanies to include a sex parameter
-meaniessex <- function(Xvar, year, dataset, sex) {
-  dat_subset <- dataset %>% filter(SurveyYear == year & Sex == sex)
+meaniessex <- function(Xvar, year, dataset, sex, filter_meat = FALSE) {
   #replace Xvar with variable name
-  #(idk why i have to do this, but it wasn't working without it and it wouldn't
-  #let me just add the tilda to the beginning of Xvar for some reason...)
   form_var <- as.formula(paste("~", Xvar))
+  
+  dat_subset <- dataset %>% filter(SurveyYear == year & Sex == sex)
+  
+  if (!is.null(filter_meat) && filter_meat != FALSE) {
+    dat_subset <- dat_subset %>% filter(eval(parse(text = filter_meat)))
+  }
   
   #set survey design
   survey_design <- dat_subset %>%
@@ -460,20 +535,29 @@ meaniessex <- function(Xvar, year, dataset, sex) {
   
   return(year_values)
 }
-#modified meaniebobeanies to include a sex parameter
-meaniebobeaniessex <- function(var_list, dataset, sex) {
+
+
+meaniebobeaniessex <- function(var_list, dataset, sex, filter_meat = FALSE) {
   results <- data.frame()
+  
   for (var in var_list) {
     combined <- numeric()
+    
     for (year in 1:11) {
-      year_values <- meaniessex(var, year, dataset, sex)
+      year_values <- meaniessex(var, year, dataset, sex, filter_meat)
       combined <- c(combined, year_values)
     }
+    
     trans <- data.frame(t(combined))
+    colnames(trans) <- paste("Year", 1:11)
     results <- rbind(results, trans)
   }
+  
   return(results)
 }
+
+
+
 pintsex <- function(variable, dat.design) {
   form_var <- as.formula(paste(variable, "~ SurveyYear + Sex + SurveyYear * Sex"))
   
@@ -516,71 +600,176 @@ pintsex <- function(variable, dat.design) {
   
   return(peezies)
 }
+
 runsex <- function(analysis) {
-  #Males
-  X <- meaniebobeaniessex(ListToFeed, dat, "M")
-  pvec <- character()
+  results <- data.frame()
+  pvecM <- character()
+  pvecW <- character()
+  pvecMW <- character()
   
+  # Define filter conditions
+  filter_conditions <- list(
+    "MeatDays" = "sumMeatg > 0",
+    "ProcessedDays" = "sumProcessedg > 0",
+    "RedDays" = "sumRedg > 0",
+    "WhiteDays" = "sumWhiteg > 0",
+    "avgMeatokaj" = "sumMeatg > 0",
+    "avgProcessedokaj" = "sumProcessedg > 0",
+    "avgRedokaj" = "sumRedg > 0",
+    "avgWhiteokaj" = "sumWhiteg > 0"
+  )
+  
+  # Loop for each variable in the list
   for (var in ListToFeed) {
-    #get p-value for men
+    filter_meat <- filter_conditions[[var]]
+    
+    # Process data for Males
+    X <- meaniebobeaniessex(var_list = c(var), dataset = dat, sex = "M", filter_meat = filter_meat)
     pvalM <- pintsex(var, dat.design)$Men_P
-    pvec <- c(pvec, pvalM)
-  }
-  
-  #add the column for men's p-values
-  X$pvalM <- pvec
-  
-  # Run for Females
-  X1 <- meaniebobeaniessex(ListToFeed, dat, "F")
-  colnames(X1) <- paste0("F_", colnames(X1))
-  pvec1 <- character()
-  
-  for (var in ListToFeed) {
-    #get p-value for women
+    pvecM <- c(pvecM, pvalM)
+    
+    # Process data for Females
+    X1 <- meaniebobeaniessex(var_list = c(var), dataset = dat, sex = "F", filter_meat = filter_meat)
+    colnames(X1) <- paste0("F_", colnames(X1))
     pvalW <- pintsex(var, dat.design)$Women_P
-    pvec1 <- c(pvec1, pvalW)
-  }
-  
-  #add the column for women's p-values
-  X1$pvalW <- pvec1
-  
-  #combine
-  X <- cbind(X, X1)
-  
-  pvec2 <- character()
-  for (var in ListToFeed) {
-    #get p-value for men-women interaction
+    pvecW <- c(pvecW, pvalW)
+    
+    # Calculate p-value for men-women interaction
     pvalMW <- pintsex(var, dat.design)$Men_Women_Pint
-    pvec2 <- c(pvec2, pvalMW)
+    pvecMW <- c(pvecMW, pvalMW)
+    
+    # Combine Male and Female data
+    combinedX <- cbind(X, X1)
+    rownames(combinedX) <- var
+    results <- rbind(results, combinedX)
   }
   
-  #add the column for men and women difference p-values
-  X$PintMW <- pvec2
+  # Assemble results
+  results$PvalM <- pvecM
+  results$PvalW <- pvecW
+  results$PvalMW <- pvecMW
+  results <- rownames_to_column(results, var = "Meat Type")
+  colnames(results) <- gsub("\\.", " ", colnames(results))
+  assign(analysis, results, envir = globalenv())
+}
+ListToFeed <- c("PropMeat", "MeatDays", "avgMeatokaj", "gperokajMeat", "sumMeatgdaily", 
+                "PropProcessed", "ProcessedDays", "avgProcessedokaj", "gperokajProcessed", "sumProcessedgdaily",
+                "PropRed", "RedDays", "avgRedokaj", "gperokajRed", "sumRedgdaily",
+                "PropWhite", "WhiteDays", "avgWhiteokaj", "gperokajWhite", "sumWhitegdaily")
+runsex("sitable5a")
+
+# Loop through each meat type in sitable5a
+for (meat_type in unique(sitable5a$`Meat Type`)) {
+  # Find the row index for this meat type in sitable5a
+  row_index <- which(sitable5a$`Meat Type` == meat_type)
   
-  rownames(X) <- ListToFeed
-  X <- rownames_to_column(X, var = "Meat Type")
-  colnames(X) <- gsub("\\.", " ", colnames(X))
-  #create dataframe with name
-  assign(analysis, X, envir = globalenv())
+  # For each year, update the values for males and females
+  for (year in 1:(ncol(PropsFormattedM) - 1)) {  # Assuming both formatted dataframes have the same number of year columns
+    male_col <- paste0("Year ", year)
+    female_col <- paste0("F_Year ", year)
+    
+    # Update sitable5a with male and female values
+    male_value <- PropsFormattedM[PropsFormattedM$MeatType == meat_type, paste0("Year ", year, ".M")]
+    female_value <- PropsFormattedF[PropsFormattedF$MeatType == meat_type, paste0("Year ", year, ".F")]
+    
+    # Only replace if there's a matching value found
+    if (!is.na(male_value) && length(male_value) > 0) {
+      sitable5a[row_index, male_col] <- male_value
+    }
+    if (!is.na(female_value) && length(female_value) > 0) {
+      sitable5a[row_index, female_col] <- female_value
+    }
+  }
 }
 
-ListToFeed <- c("MeatDays", "avgMeatokaj", "gperokajMeat",
-                "ProcessedDays", "avgProcessedokaj", "gperokajProcessed",
-                "RedDays", "avgRedokaj", "gperokajRed",
-                "WhiteDays", "avgWhiteokaj", "gperokajWhite")
-runsex("sitable5a")
-rm(ListToFeed)
 
 
 #ADULTS (18+) vs. CHILDREN (<18)
 
+
+
+
+# Calculate proportion of participants who are meat consumers for each meat subtype by LifeStage
+weighted_props_a <- svyby(~I(sumMeatg > 0) + I(sumProcessedg > 0) + I(sumRedg > 0) + I(sumWhiteg > 0),
+                          ~SurveyYear + LifeStage, 
+                          subset(survey_design, LifeStage == "A"), 
+                          svymean, 
+                          na.rm = TRUE)
+
+weighted_props_c <- svyby(~I(sumMeatg > 0) + I(sumProcessedg > 0) + I(sumRedg > 0) + I(sumWhiteg > 0),
+                          ~SurveyYear + LifeStage, 
+                          subset(survey_design, LifeStage == "C"), 
+                          svymean, 
+                          na.rm = TRUE)
+
+# Select only the columns ending with "TRUE" and rename them
+cols_to_keep_a <- c("PropMeat_A", "PropProcessed_A", "PropRed_A", "PropWhite_A",
+                    "PropMeatSE_A", "PropProcessedSE_A", "PropRedSE_A", "PropWhiteSE_A")
+cols_to_keep_c <- c("PropMeat_C", "PropProcessed_C", "PropRed_C", "PropWhite_C",
+                    "PropMeatSE_C", "PropProcessedSE_C", "PropRedSE_C", "PropWhiteSE_C")
+
+weighted_props_a <- weighted_props_a %>%
+  dplyr::select(ends_with("TRUE")) %>%
+  setNames(cols_to_keep_a)
+
+weighted_props_c <- weighted_props_c %>%
+  dplyr::select(ends_with("TRUE")) %>%
+  setNames(cols_to_keep_c)
+
+# Transpose and prepare formatted output
+PropsA <- as.data.frame(t(weighted_props_a))
+PropsA <- rownames_to_column(PropsA, var = "MeatType")
+PropsA[1:8, -1] <- round(PropsA[1:8, -1] * 100, 2)
+PropsFormattedA <- PropsA[1:4, ]
+for (i in 1:nrow(PropsFormattedA)) {
+  for (j in 2:ncol(PropsFormattedA)) {
+    PropsFormattedA[i, j] <- paste0(PropsA[i, j], " (", PropsA[i + 4, j], ")")
+  }
+}
+colnames(PropsFormattedA)[-1] <- paste0("Year ", colnames(PropsFormattedA)[-1])
+
+PropsC <- as.data.frame(t(weighted_props_c))
+PropsC <- rownames_to_column(PropsC, var = "MeatType")
+PropsC[1:8, -1] <- round(PropsC[1:8, -1] * 100, 2)
+PropsFormattedC <- PropsC[1:4, ]
+for (i in 1:nrow(PropsFormattedC)) {
+  for (j in 2:ncol(PropsFormattedC)) {
+    PropsFormattedC[i, j] <- paste0(PropsC[i, j], " (", PropsC[i + 4, j], ")")
+  }
+}
+colnames(PropsFormattedC)[-1] <- paste0("Year ", colnames(PropsFormattedC)[-1])
+PropsFormattedA$MeatType <- gsub("_A$", "", PropsFormattedA$MeatType)
+PropsFormattedC$MeatType <- gsub("_C$", "", PropsFormattedC$MeatType)
+
+# Combine Adult and Children data into one dataset, ensure correct merging
+weighted_props_a$SurveyYear <- 1:nrow(weighted_props_a) #add a "survey year" variable (to integrate into main dataset for analysis)
+weighted_props_c$SurveyYear <- 1:nrow(weighted_props_c) #add a "survey year" variable (to integrate into main dataset for analysis)
+weighted_props <- merge(weighted_props_a, weighted_props_c, by = "SurveyYear", all = TRUE)
+dat <- merge(dat, weighted_props, by = "SurveyYear", all.x = TRUE)
+
+# Re-specify the survey design with new proportion variables
+dat.design <-
+  svydesign(
+    id = ~serialh/area,  # multi-level cluster of households and PSUs
+    strata = ~astrata5,  # stratification by district
+    data = dat,
+    weights = ~wti,  # NDNS-assigned survey weight
+    nest = TRUE
+  )
+
+
+
+
 #modified meanies to include a lifestage parameter
-meanieslifestage <- function(Xvar, year, dataset, lifestage) {
-  dat_subset <- dataset %>% filter(SurveyYear == year & LifeStage == lifestage)
+meanieslifestage <- function(Xvar, year, dataset, lifestage, filter_meat = FALSE) {
   #replace Xvar with variable name
-  #(idk why i have to do this, but it wasn't working without it and it wouldn't
-  #let me just add the tilda to the beginning of Xvar for some reason...)
   form_var <- as.formula(paste("~", Xvar))
+  
+  dat_subset <- dataset %>% filter(SurveyYear == year & LifeStage == lifestage)
+  
+  if (!is.null(filter_meat) && filter_meat != FALSE) {
+    dat_subset <- dat_subset %>% filter(eval(parse(text = filter_meat)))
+  }
   
   #set survey design
   survey_design <- dat_subset %>%
@@ -604,12 +793,12 @@ meanieslifestage <- function(Xvar, year, dataset, lifestage) {
   return(year_values)
 }
 #modified meaniebobeanies to include a lifestage parameter
-meaniebobeanieslifestage <- function(var_list, dataset, lifestage) {
+meaniebobeanieslifestage <- function(var_list, dataset, lifestage, filter_meat = FALSE) {
   results <- data.frame()
   for (var in var_list) {
     combined <- numeric()
     for (year in 1:11) {
-      year_values <- meanieslifestage(var, year, dataset, lifestage)
+      year_values <- meanieslifestage(var, year, dataset, lifestage, filter_meat)
       combined <- c(combined, year_values)
     }
     trans <- data.frame(t(combined))
@@ -707,22 +896,212 @@ runlifestage <- function(analysis) {
   assign(analysis, X, envir = globalenv())
 }
 
-ListToFeed <- c("MeatDays", "avgMeatokaj", "gperokajMeat",
-                "ProcessedDays", "avgProcessedokaj", "gperokajProcessed",
-                "RedDays", "avgRedokaj", "gperokajRed",
-                "WhiteDays", "avgWhiteokaj", "gperokajWhite")
+
+
+runlifestage <- function(analysis) {
+  results <- data.frame()
+  pvecA <- character()
+  pvecC <- character()
+  pvecAC <- character()
+  
+  # Define filter conditions
+  filter_conditions <- list(
+    "MeatDays" = "sumMeatg > 0",
+    "ProcessedDays" = "sumProcessedg > 0",
+    "RedDays" = "sumRedg > 0",
+    "WhiteDays" = "sumWhiteg > 0",
+    "avgMeatokaj" = "sumMeatg > 0",
+    "avgProcessedokaj" = "sumProcessedg > 0",
+    "avgRedokaj" = "sumRedg > 0",
+    "avgWhiteokaj" = "sumWhiteg > 0"
+  )
+  
+  # Loop for each variable in the list
+  for (var in ListToFeed) {
+    filter_meat <- filter_conditions[[var]]
+    
+    # Process data for Adults
+    X <- meaniebobeanieslifestage(var_list = c(var), dataset = dat, lifestage = "A", filter_meat = filter_meat)
+    pvalA <- pintlifestage(var, dat.design)$Adult_P
+    pvecA <- c(pvecA, pvalA)
+    
+    # Process data for Children
+    X1 <- meaniebobeanieslifestage(var_list = c(var), dataset = dat, lifestage = "C", filter_meat = filter_meat)
+    colnames(X1) <- paste0("C_", colnames(X1))
+    pvalC <- pintlifestage(var, dat.design)$Child_P
+    pvecC <- c(pvecC, pvalC)
+    
+    # Calculate p-value for adult-child interaction
+    pvalAC <- pintlifestage(var, dat.design)$Adult_Child_Pint
+    pvecAC <- c(pvecAC, pvalAC)
+    
+    # Combine Adult and Child data
+    combinedX <- cbind(X, X1)
+    rownames(combinedX) <- var
+    results <- rbind(results, combinedX)
+  }
+  
+  # Assemble results
+  results$PvalA <- pvecA
+  results$PvalC <- pvecC
+  results$PvalAC <- pvecAC
+  results <- rownames_to_column(results, var = "Meat Type")
+  colnames(results) <- gsub("\\.", " ", colnames(results))
+  assign(analysis, results, envir = globalenv())
+}
+
+ListToFeed <- c("PropMeat", "MeatDays", "avgMeatokaj", "gperokajMeat", "sumMeatgdaily", 
+                "PropProcessed", "ProcessedDays", "avgProcessedokaj", "gperokajProcessed", "sumProcessedgdaily",
+                "PropRed", "RedDays", "avgRedokaj", "gperokajRed", "sumRedgdaily",
+                "PropWhite", "WhiteDays", "avgWhiteokaj", "gperokajWhite", "sumWhitegdaily")
 runlifestage("sitable5b")
 rm(ListToFeed)
+
+# Loop through each meat type in sitable5a
+for (meat_type in unique(sitable5b$`Meat Type`)) {
+  # Find the row index for this meat type in sitable5a
+  row_index <- which(sitable5b$`Meat Type` == meat_type)
+  
+  # For each year, update the values for adults and children
+  for (year in 1:(ncol(PropsFormattedA) - 1)) { 
+    adult_col <- paste0("Year ", year)
+    child_col <- paste0("C_Year ", year)
+    
+    # Update sitable5a with male and female values
+    adult_value <- PropsFormattedA[PropsFormattedA$MeatType == meat_type, paste0("Year ", year, ".A")]
+    child_value <- PropsFormattedC[PropsFormattedC$MeatType == meat_type, paste0("Year ", year, ".C")]
+    
+    # Only replace if there's a matching value found
+    if (!is.na(adult_value) && length(adult_value) > 0) {
+      sitable5b[row_index, adult_col] <- adult_value
+    }
+    if (!is.na(child_value) && length(child_value) > 0) {
+      sitable5b[row_index, child_col] <- child_value
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Calculate proportion of participants who are meat consumers for each meat subtype by eqv levels
+weighted_props_1 <- svyby(~I(sumMeatg > 0) + I(sumProcessedg > 0) + I(sumRedg > 0) + I(sumWhiteg > 0),
+                          ~SurveyYear + eqv, 
+                          subset(survey_design, eqv == "1"), 
+                          svymean, 
+                          na.rm = TRUE)
+
+weighted_props_2 <- svyby(~I(sumMeatg > 0) + I(sumProcessedg > 0) + I(sumRedg > 0) + I(sumWhiteg > 0),
+                          ~SurveyYear + eqv, 
+                          subset(survey_design, eqv == "2"), 
+                          svymean, 
+                          na.rm = TRUE)
+
+weighted_props_3 <- svyby(~I(sumMeatg > 0) + I(sumProcessedg > 0) + I(sumRedg > 0) + I(sumWhiteg > 0),
+                          ~SurveyYear + eqv, 
+                          subset(survey_design, eqv == "3"), 
+                          svymean, 
+                          na.rm = TRUE)
+
+# Select only the columns ending with "TRUE" and rename them
+cols_to_keep_1 <- c("PropMeat_1", "PropProcessed_1", "PropRed_1", "PropWhite_1",
+                    "PropMeatSE_1", "PropProcessedSE_1", "PropRedSE_1", "PropWhiteSE_1")
+cols_to_keep_2 <- c("PropMeat_2", "PropProcessed_2", "PropRed_2", "PropWhite_2",
+                    "PropMeatSE_2", "PropProcessedSE_2", "PropRedSE_2", "PropWhiteSE_2")
+cols_to_keep_3 <- c("PropMeat_3", "PropProcessed_3", "PropRed_3", "PropWhite_3",
+                    "PropMeatSE_3", "PropProcessedSE_3", "PropRedSE_3", "PropWhiteSE_3")
+
+weighted_props_1 <- weighted_props_1 %>%
+  dplyr::select(ends_with("TRUE")) %>%
+  setNames(cols_to_keep_1)
+
+weighted_props_2 <- weighted_props_2 %>%
+  dplyr::select(ends_with("TRUE")) %>%
+  setNames(cols_to_keep_2)
+
+weighted_props_3 <- weighted_props_3 %>%
+  dplyr::select(ends_with("TRUE")) %>%
+  setNames(cols_to_keep_3)
+
+# Combine data for all eqv levels
+weighted_props_1$SurveyYear <- 1:nrow(weighted_props_1) #add a "survey year" variable
+weighted_props_2$SurveyYear <- 1:nrow(weighted_props_2) #add a "survey year" variable
+weighted_props_3$SurveyYear <- 1:nrow(weighted_props_3) #add a "survey year" variable
+
+weighted_props <- Reduce(function(x, y) merge(x, y, by = "SurveyYear", all = TRUE), list(weighted_props_1, weighted_props_2, weighted_props_3))
+dat <- merge(dat, weighted_props, by = "SurveyYear", all.x = TRUE)
+
+# Re-specify the survey design with new proportion variables
+dat.design <-
+  svydesign(
+    id = ~serialh/area,  # multi-level cluster of households and PSUs
+    strata = ~astrata5,  # stratification by district
+    data = dat,
+    weights = ~wti,  # NDNS-assigned survey weight
+    nest = TRUE
+  )
+
+# Transpose and prepare formatted output for eqv levels
+Props1 <- as.data.frame(t(weighted_props_1))
+Props1 <- rownames_to_column(Props1, var = "MeatType")
+Props1[1:8, -1] <- round(Props1[1:8, -1] * 100, 2)
+PropsFormatted1 <- Props1[1:4, ]
+for (i in 1:nrow(PropsFormatted1)) {
+  for (j in 2:ncol(PropsFormatted1)) {
+    PropsFormatted1[i, j] <- paste0(Props1[i, j], " (", Props1[i + 4, j], ")")
+  }
+}
+colnames(PropsFormatted1)[-1] <- paste0("Year ", colnames(PropsFormatted1)[-1])
+PropsFormatted1$MeatType <- gsub("_1$", "", PropsFormatted1$MeatType)
+
+Props2 <- as.data.frame(t(weighted_props_2))
+Props2 <- rownames_to_column(Props2, var = "MeatType")
+Props2[1:8, -1] <- round(Props2[1:8, -1] * 100, 2)
+PropsFormatted2 <- Props2[1:4, ]
+for (i in 1:nrow(PropsFormatted2)) {
+  for (j in 2:ncol(PropsFormatted2)) {
+    PropsFormatted2[i, j] <- paste0(Props2[i, j], " (", Props2[i + 4, j], ")")
+  }
+}
+colnames(PropsFormatted2)[-1] <- paste0("Year ", colnames(PropsFormatted2)[-1])
+PropsFormatted2$MeatType <- gsub("_2$", "", PropsFormatted2$MeatType)
+
+Props3 <- as.data.frame(t(weighted_props_3))
+Props3 <- rownames_to_column(Props3, var = "MeatType")
+Props3[1:8, -1] <- round(Props3[1:8, -1] * 100, 2)
+PropsFormatted3 <- Props3[1:4, ]
+for (i in 1:nrow(PropsFormatted3)) {
+  for (j in 2:ncol(PropsFormatted3)) {
+    PropsFormatted3[i, j] <- paste0(Props3[i, j], " (", Props3[i + 4, j], ")")
+  }
+}
+colnames(PropsFormatted3)[-1] <- paste0("Year ", colnames(PropsFormatted3)[-1])
+PropsFormatted3$MeatType <- gsub("_3$", "", PropsFormatted3$MeatType)
+
+# Combine the formatted data into one dataset
+PropsFormatted <- Reduce(function(x, y) merge(x, y, by = "MeatType", all = TRUE), list(PropsFormatted1, PropsFormatted2, PropsFormatted3))
 
 
 
 #modified meanies to include an eqv parameter
-meanieseqv <- function(Xvar, year, dataset, schmoney) {
-  dat_subset <- dataset %>% filter(SurveyYear == year & eqv == schmoney)
+meanieseqv <- function(Xvar, year, dataset, schmoney, filter_meat = FALSE) {
   #replace Xvar with variable name
-  #(idk why i have to do this, but it wasn't working without it and it wouldn't
-  #let me just add the tilda to the beginning of Xvar for some reason...)
   form_var <- as.formula(paste("~", Xvar))
+  
+  dat_subset <- dataset %>% filter(SurveyYear == year & eqv == schmoney)
+ 
+  if (!is.null(filter_meat) && filter_meat != FALSE) {
+    dat_subset <- dat_subset %>% filter(eval(parse(text = filter_meat)))
+  }
   
   #set survey design
   survey_design <- dat_subset %>%
@@ -746,12 +1125,12 @@ meanieseqv <- function(Xvar, year, dataset, schmoney) {
   return(year_values)
 }
 #modified meaniebobeanies to include an eqv parameter
-meaniebobeanieseqv <- function(var_list, dataset, schmoney) {
+meaniebobeanieseqv <- function(var_list, dataset, schmoney, filter_meat = FALSE) {
   results <- data.frame()
   for (var in var_list) {
     combined <- numeric()
     for (year in 1:11) {
-      year_values <- meanieseqv(var, year, dataset, schmoney)
+      year_values <- meanieseqv(var, year, dataset, schmoney, filter_meat)
       combined <- c(combined, year_values)
     }
     trans <- data.frame(t(combined))
@@ -865,13 +1244,153 @@ runeqv <- function(analysis) {
   result <- result[, ordered_cols]
   return(result)
 }
+runeqv <- function(analysis) {
+  
+  # Define filter conditions
+  filter_conditions <- list(
+    "MeatDays" = "sumMeatg > 0",
+    "ProcessedDays" = "sumProcessedg > 0",
+    "RedDays" = "sumRedg > 0",
+    "WhiteDays" = "sumWhiteg > 0",
+    "avgMeatokaj" = "sumMeatg > 0",
+    "avgProcessedokaj" = "sumProcessedg > 0",
+    "avgRedokaj" = "sumRedg > 0",
+    "avgWhiteokaj" = "sumWhiteg > 0"
+  )
+  
+  X <- list()
+  
+  eqv_groups <- list("1", "2", "3")
+  pval_cols <- c("p_1", "p_2", "p_3")
+  pval_diffs <- c(NULL, "p_1_2diff", "p_1_3diff")
+  
+  for (i in seq_along(eqv_groups)) {
+    eqv_group <- eqv_groups[[i]]
+    
+    X_temp <- list()
+    
+    for (var in ListToFeed) {
+      filter_meat <- ifelse(var %in% names(filter_conditions), filter_conditions[[var]], FALSE)
+      
+      temp_result <- meaniebobeanieseqv(var_list = c(var), dataset = dat, schmoney = eqv_group, filter_meat = filter_meat) # add means
+      temp_result <- as.data.frame(temp_result)
+      
+      names(temp_result)[names(temp_result) == "Year.1"] <- paste0("Year.1_eqv", eqv_group) # add eqv group to col 1
+      
+      pval <- pinteqv(var, dat.design)[[pval_cols[i]]]
+      temp_result[[paste0("pval", eqv_group)]] <- pval
+      
+      if (!is.null(pval_diffs[i]) && !is.na(pval_diffs[i])) {
+        pval_diff <- pinteqv(var, dat.design)[[pval_diffs[i]]]
+        temp_result[[pval_diffs[i]]] <- pval_diff
+      }
+      
+      X_temp[[var]] <- temp_result
+    }
+    
+    X_temp <- do.call(rbind, X_temp)
+    
+    colnames(X_temp)[-1] <- paste0(colnames(X_temp)[-1], "_eqv", eqv_group) # rename columns
+    
+    # Ensure pval_diffs columns do not have eqv_group suffixes
+    for (pval_diff in pval_diffs) {
+      if (!is.null(pval_diff) && !is.na(pval_diff)) {
+        colnames(X_temp)[colnames(X_temp) == paste0(pval_diff, "_eqv", eqv_group)] <- pval_diff
+      }
+    }
+    
+    X[[eqv_group]] <- X_temp
+  }
+  
+  # Combine the data frames
+  result <- Reduce(function(x, y) cbind(x, y), X)
+  rownames(result) <- ListToFeed
+  result <- rownames_to_column(result, var = "Meat Type")
+  colnames(result) <- gsub("\\.", "_", colnames(result))
+  
+  # Check columns present in result
+  print("Columns in result before ordering:")
+  print(colnames(result))
+  
+  # Define column order
+  ordered_cols <- c("Meat Type", 
+                    "Year_1_eqv1",  "Year_2_eqv1",  "Year_3_eqv1",  "Year_4_eqv1",  "Year_5_eqv1",  "Year_6_eqv1", 
+                    "Year_7_eqv1",  "Year_8_eqv1",  "Year_9_eqv1",  "Year_10_eqv1", "Year_11_eqv1", "pval1_eqv1", 
+                    "Year_1_eqv2",  "Year_2_eqv2",  "Year_3_eqv2",  "Year_4_eqv2",  "Year_5_eqv2",  "Year_6_eqv2",  
+                    "Year_7_eqv2",  "Year_8_eqv2",  "Year_9_eqv2",  "Year_10_eqv2", "Year_11_eqv2", "pval2_eqv2", "p_1_2diff", 
+                    "Year_1_eqv3",  "Year_2_eqv3",  "Year_3_eqv3",  "Year_4_eqv3",  "Year_5_eqv3",  "Year_6_eqv3",  
+                    "Year_7_eqv3",  "Year_8_eqv3",  "Year_9_eqv3",  "Year_10_eqv3", "Year_11_eqv3", "pval3_eqv3", "p_1_3diff")
+  
+  # Check for missing columns
+  missing_cols <- setdiff(ordered_cols, colnames(result))
+  if (length(missing_cols) > 0) {
+    warning("Missing columns: ", paste(missing_cols, collapse = ", "))
+  }
+  
+  result <- result[, ordered_cols, drop = FALSE]
+  return(result)
+}
 
-ListToFeed <- c("MeatDays", "avgMeatokaj", "gperokajMeat",
-                "ProcessedDays", "avgProcessedokaj", "gperokajProcessed",
-                "RedDays", "avgRedokaj", "gperokajRed",
-                "WhiteDays", "avgWhiteokaj", "gperokajWhite")
+ListToFeed <- c("PropMeat", "MeatDays", "avgMeatokaj", "gperokajMeat", "sumMeatgdaily", 
+                "PropProcessed", "ProcessedDays", "avgProcessedokaj", "gperokajProcessed", "sumProcessedgdaily",
+                "PropRed", "RedDays", "avgRedokaj", "gperokajRed", "sumRedgdaily",
+                "PropWhite", "WhiteDays", "avgWhiteokaj", "gperokajWhite", "sumWhitegdaily")
 sitable5c <- runeqv("sitable5c")
-rm(ListToFeed)
+
+
+
+# Get the column names of the dataframe
+column_names <- colnames(sitable5c)
+
+# Iterate through each column name
+for (i in 1:length(column_names)) {
+  # Remove the underscore between "Year" and the number
+  column_names[i] <- gsub("Year_", "Year ", column_names[i])
+  # Check if the column name ends with "_eqv1"
+  if (grepl("_eqv1$", column_names[i])) {
+    # Remove the "_eqv1" part
+    column_names[i] <- sub("_eqv1$", "", column_names[i])
+  }
+}
+
+# Assign the updated column names
+colnames(sitable5c) <- column_names
+
+
+# Loop through each meat type in sitable5a
+for (meat_type in unique(sitable5c$`Meat Type`)) {
+  # Find the row index for this meat type in sitable5a
+  row_index <- which(sitable5c$`Meat Type` == meat_type)
+  
+  # For each year, update the values for adults and children
+  for (year in 1:(ncol(PropsFormatted1) - 1)) { 
+    one_col <- paste0("Year ", year)
+    two_col <- paste0("Year ", year, "_eqv2")
+    three_col <- paste0("Year ", year, "_eqv3")
+    
+    
+    # Update sitable5a with male and female values
+    one_value <- PropsFormatted1[PropsFormatted1$MeatType == meat_type, paste0("Year ", year, ".1")]
+    two_value <- PropsFormatted2[PropsFormatted2$MeatType == meat_type, paste0("Year ", year, ".2")]
+    three_value <- PropsFormatted3[PropsFormatted3$MeatType == meat_type, paste0("Year ", year, ".3")]
+    
+    # Only replace if there's a matching value found
+    if (!is.na(one_value) && length(one_value) > 0) {
+      sitable5c[row_index, one_col] <- one_value
+    }
+    if (!is.na(two_value) && length(two_value) > 0) {
+      sitable5c[row_index, two_col] <- two_value
+    }
+    if (!is.na(three_value) && length(three_value) > 0) {
+      sitable5c[row_index, three_col] <- three_value
+    }
+  }
+}
+
+
+
+
+
 
 
 
@@ -1053,31 +1572,105 @@ custom_x_labels <- function(x) {
   return(labels)
 }
 #line plot of meat trends
-#Days
-m2 <- svyglm(ProcessedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
-m3 <- svyglm(RedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
-m4 <- svyglm(WhiteDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
-m5 <- svyglm(NoMeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
-#fitted values for each model
+#proportion of population that are consumers
+m2 <- svyglm(PropProcessed ~ SurveyYear, dat.design)
+m3 <- svyglm(PropRed ~ SurveyYear, dat.design)
+m4 <- svyglm(PropWhite ~ SurveyYear, dat.design)
 survey_years <- unique(dat.design$variables$SurveyYear)
 predictions <- data.frame(
-  SurveyYear = rep(survey_years, 4),
-  Category = factor(rep(c("ProcessedDays", "RedDays", "WhiteDays", "NoMeatDays"), each = length(survey_years))),
-  PredictedDays = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+  SurveyYear = rep(survey_years, 3),
+  Category = factor(rep(c("PropProcessed", "PropRed", "PropWhite"), each = length(survey_years))),
+  PredictedConsumers = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
                     predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
-                    predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"),
-                    predict(m5, newdata = data.frame(SurveyYear = survey_years), type = "response"))
+                    predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"))
 )
 #create a custom color palette using colorblind friendly colors
-color_palette <- c("#E69F00", "#0072B2", "#D55E00", "#009E73") #order: processed (orange), white (blue), red (red), no meat (green)
+color_palette <- c("#E69F00", "#D55E00", "#0072B2") #order: processed (orange), red (red), white (blue)
 #correct order
-predictions$Category <- factor(predictions$Category, levels = c("ProcessedDays", "WhiteDays", "RedDays", "NoMeatDays"))
+predictions$Category <- factor(predictions$Category, levels = c("PropProcessed", "PropRed", "PropWhite"))
 #category names
-levels(predictions$Category) <- c("Processed", "White", "Red", "No meat")
+levels(predictions$Category) <- c("Processed", "Red", "White")
 #convert SurveyYear to numeric
 predictions$SurveyYear <- as.numeric(as.character(predictions$SurveyYear))
 #create plot
-plot1 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
+plot0 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedConsumers, color = Category, group = Category)) +
+  geom_point(size = 1) +
+  geom_line(aes(linetype = "solid")) +
+  geom_smooth(method = "glm", formula = 'y ~ x', se = FALSE, aes(linetype = "dotted", group = Category)) +
+  scale_color_manual(values = color_palette) +
+  scale_linetype_manual(name = "Line type",
+                        values = c("solid" = "solid", "dotted" = "dotted"),
+                        labels = c("solid" = "Actual data", "dotted" = "2008/09-2018/19 trend")) +
+  labs(x = "Survey year", y = "Proportion of the population consuming meat (%)", color = "Meat category") +
+  scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
+  theme_classic() +
+  theme(text = element_text(family = "Times", size = 12),
+        axis.text.x = element_text(angle = 45, hjust = 1)) +
+  guides(linetype = guide_legend(override.aes = list(color = "black")))
+print(plot0)
+
+
+
+
+
+
+
+
+
+
+
+# Adjust weights for ProcessedDays
+dat$ProcessedWeight <- ifelse(dat$sumProcessedg > 0, dat$wti, 0)
+dat.design_processed_days <- svydesign(
+  id = ~area,
+  strata = ~astrata5,
+  data = dat,
+  weights = ~ProcessedWeight,
+  fpc = ~fpc
+)
+m2_days <- svyglm(ProcessedDays ~ SurveyYear, family = poisson(link = "log"), dat.design_processed_days)
+
+# Adjust weights for RedDays
+dat$RedWeight <- ifelse(dat$sumRedg > 0, dat$wti, 0)
+dat.design_red_days <- svydesign(
+  id = ~area,
+  strata = ~astrata5,
+  data = dat,
+  weights = ~RedWeight,
+  fpc = ~fpc
+)
+m3_days <- svyglm(RedDays ~ SurveyYear, family = poisson(link = "log"), dat.design_red_days)
+
+# Adjust weights for WhiteDays
+dat$WhiteWeight <- ifelse(dat$sumWhiteg > 0, dat$wti, 0)
+dat.design_white_days <- svydesign(
+  id = ~area,
+  strata = ~astrata5,
+  data = dat,
+  weights = ~WhiteWeight,
+  fpc = ~fpc
+)
+m4_days <- svyglm(WhiteDays ~ SurveyYear, family = poisson(link = "log"), dat.design_white_days)
+
+# Fitted values for each model
+survey_years <- unique(dat.design$variables$SurveyYear)
+predictions_days <- data.frame(
+  SurveyYear = rep(survey_years, 3),
+  Category = factor(rep(c("ProcessedDays", "RedDays", "WhiteDays"), each = length(survey_years))),
+  PredictedDays = c(predict(m2_days, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m3_days, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                    predict(m4_days, newdata = data.frame(SurveyYear = survey_years), type = "response"))
+)
+#create a custom color palette using colorblind friendly colors
+color_palette <- c("#E69F00", "#0072B2", "#D55E00")
+#correct order
+predictions_days$Category <- factor(predictions_days$Category, levels = c("ProcessedDays", "WhiteDays", "RedDays"))
+#category names
+levels(predictions_days$Category) <- c("Processed", "White", "Red")
+#convert SurveyYear to numeric
+predictions_days$SurveyYear <- as.numeric(as.character(predictions_days$SurveyYear))
+#create plot
+plot1 <- ggplot(predictions_days, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
   geom_point(size = 1) +
   geom_line(aes(linetype = "solid")) +
   geom_smooth(method = "glm", formula = 'y ~ x', se = FALSE, aes(linetype = "dotted", group = Category)) +
@@ -1086,52 +1679,193 @@ plot1 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Cate
                         values = c("solid" = "solid", "dotted" = "dotted"),
                         labels = c("solid" = "Actual data", "dotted" = "2008/09-2018/19 trend")) +
   labs(x = "Survey year", y = "Number of meat days/4-day period", color = "Meat category") +
-  scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
+  scale_x_continuous(breaks = predictions_days$SurveyYear, labels = custom_x_labels) +
   theme_classic() +
   theme(text = element_text(family = "Times", size = 12),
         axis.text.x = element_text(angle = 45, hjust = 1)) +
   guides(linetype = guide_legend(override.aes = list(color = "black")))
 print(plot1)
 
-#Occasions
-m2 <- svyglm(avgProcessedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-m3 <- svyglm(avgRedokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-m4 <- svyglm(avgWhiteokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
-#fitted values for each model
+
+
+
+
+
+
+# 
+# 
+# #Days
+# m2 <- svyglm(ProcessedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
+# m3 <- svyglm(RedDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
+# m4 <- svyglm(WhiteDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
+# #fitted values for each model
+# survey_years <- unique(dat.design$variables$SurveyYear)
+# predictions <- data.frame(
+#   SurveyYear = rep(survey_years, 3),
+#   Category = factor(rep(c("ProcessedDays", "RedDays", "WhiteDays"), each = length(survey_years))),
+#   PredictedDays = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+#                     predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+#                     predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"))
+# )
+# #create a custom color palette using colorblind friendly colors
+# color_palette <- c("#E69F00", "#0072B2", "#D55E00") #order: processed (orange), white (blue), red (red)
+# #correct order
+# predictions$Category <- factor(predictions$Category, levels = c("ProcessedDays", "WhiteDays", "RedDays"))
+# #category names
+# levels(predictions$Category) <- c("Processed", "White", "Red")
+# #convert SurveyYear to numeric
+# predictions$SurveyYear <- as.numeric(as.character(predictions$SurveyYear))
+# #create plot
+# plot1 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Category, group = Category)) +
+#   geom_point(size = 1) +
+#   geom_line(aes(linetype = "solid")) +
+#   geom_smooth(method = "glm", formula = 'y ~ x', se = FALSE, aes(linetype = "dotted", group = Category)) +
+#   scale_color_manual(values = color_palette) +
+#   scale_linetype_manual(name = "Line type",
+#                         values = c("solid" = "solid", "dotted" = "dotted"),
+#                         labels = c("solid" = "Actual data", "dotted" = "2008/09-2018/19 trend")) +
+#   labs(x = "Survey year", y = "Number of meat days/4-day period", color = "Meat category") +
+#   scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
+#   theme_classic() +
+#   theme(text = element_text(family = "Times", size = 12),
+#         axis.text.x = element_text(angle = 45, hjust = 1)) +
+#   guides(linetype = guide_legend(override.aes = list(color = "black")))
+# print(plot1)
+
+
+
+
+
+
+
+
+
+
+# Adjust weights for avgProcessedokaj
+dat$ProcessedOccasionsWeight <- ifelse(dat$sumProcessedg > 0, dat$wti, 0)
+dat.design_processed_occasions <- svydesign(
+  id = ~area,
+  strata = ~astrata5,
+  data = dat,
+  weights = ~ProcessedOccasionsWeight,
+  fpc = ~fpc
+)
+m2_occasions <- svyglm(avgProcessedokaj ~ SurveyYear, dat.design_processed_occasions)
+
+# Adjust weights for avgRedokaj
+dat$RedOccasionsWeight <- ifelse(dat$sumRedg > 0, dat$wti, 0)
+dat.design_red_occasions <- svydesign(
+  id = ~area,
+  strata = ~astrata5,
+  data = dat,
+  weights = ~RedOccasionsWeight,
+  fpc = ~fpc
+)
+m3_occasions <- svyglm(avgRedokaj ~ SurveyYear, dat.design_red_occasions)
+
+# Adjust weights for avgWhiteokaj
+dat$WhiteOccasionsWeight <- ifelse(dat$sumWhiteg > 0, dat$wti, 0)
+dat.design_white_occasions <- svydesign(
+  id = ~area,
+  strata = ~astrata5,
+  data = dat,
+  weights = ~WhiteOccasionsWeight,
+  fpc = ~fpc
+)
+m4_occasions <- svyglm(avgWhiteokaj ~ SurveyYear, dat.design_white_occasions)
+
+# Fitted values for each model
 survey_years <- unique(dat.design$variables$SurveyYear)
-predictions <- data.frame(
+predictions_occasions <- data.frame(
   SurveyYear = rep(survey_years, 3),
   Category = factor(rep(c("avgProcessedokaj", "avgRedokaj", "avgWhiteokaj"), each = length(survey_years))),
-  PredictedOccasions = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
-                         predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
-                         predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"))
+  PredictedOccasions = c(predict(m2_occasions, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                         predict(m3_occasions, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+                         predict(m4_occasions, newdata = data.frame(SurveyYear = survey_years), type = "response"))
 )
 #colorblind friendly colors
 color_palette <- c("#E69F00", "#0072B2", "#D55E00") #order: processed (orange), white (blue), red (red)
 #correct order
-predictions$Category <- factor(predictions$Category, levels = c("avgProcessedokaj", "avgWhiteokaj", "avgRedokaj"))
+predictions_occasions$Category <- factor(predictions_occasions$Category, levels = c("avgProcessedokaj", "avgWhiteokaj", "avgRedokaj"))
 #names for xlab
-levels(predictions$Category) <- c("Processed", "White", "Red")
+levels(predictions_occasions$Category) <- c("Processed", "White", "Red")
 #convert SurveyYear to numeric
-predictions$SurveyYear <- as.numeric(as.character(predictions$SurveyYear))
+predictions_occasions$SurveyYear <- as.numeric(as.character(predictions_occasions$SurveyYear))
 #create plot
-plot2 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedOccasions, color = Category, group = Category)) +
+plot2 <- ggplot(predictions_occasions, aes(x = SurveyYear, y = PredictedOccasions, color = Category, group = Category)) +
   geom_point(size = 1) +
   geom_line() +
   geom_smooth(method = "glm", se = FALSE, linetype = "dotted", aes(group = Category)) + #this adds the fitted line
   scale_color_manual(values = color_palette) +
   labs(x = "Survey year", y = "Number of meat-eating occasions/day", color = "Meat category") +
-  scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
+  scale_x_continuous(breaks = predictions_occasions$SurveyYear, labels = custom_x_labels) +
   theme_classic() +
   theme(text = element_text(family = "Times", size = 12),
         axis.text.x = element_text(angle = 45, hjust = 1)) +
   guides(linetype = guide_legend(override.aes = list(color = "black")))
 print(plot2)
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+# #Occasions
+# m2 <- svyglm(avgProcessedokaj ~ SurveyYear, dat.design)
+# m3 <- svyglm(avgRedokaj ~ SurveyYear, dat.design)
+# m4 <- svyglm(avgWhiteokaj ~ SurveyYear, dat.design)
+# #fitted values for each model
+# survey_years <- unique(dat.design$variables$SurveyYear)
+# predictions <- data.frame(
+#   SurveyYear = rep(survey_years, 3),
+#   Category = factor(rep(c("avgProcessedokaj", "avgRedokaj", "avgWhiteokaj"), each = length(survey_years))),
+#   PredictedOccasions = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+#                          predict(m3, newdata = data.frame(SurveyYear = survey_years), type = "response"),
+#                          predict(m4, newdata = data.frame(SurveyYear = survey_years), type = "response"))
+# )
+# #colorblind friendly colors
+# color_palette <- c("#E69F00", "#0072B2", "#D55E00") #order: processed (orange), white (blue), red (red)
+# #correct order
+# predictions$Category <- factor(predictions$Category, levels = c("avgProcessedokaj", "avgWhiteokaj", "avgRedokaj"))
+# #names for xlab
+# levels(predictions$Category) <- c("Processed", "White", "Red")
+# #convert SurveyYear to numeric
+# predictions$SurveyYear <- as.numeric(as.character(predictions$SurveyYear))
+# #create plot
+# plot2 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedOccasions, color = Category, group = Category)) +
+#   geom_point(size = 1) +
+#   geom_line() +
+#   geom_smooth(method = "glm", se = FALSE, linetype = "dotted", aes(group = Category)) + #this adds the fitted line
+#   scale_color_manual(values = color_palette) +
+#   labs(x = "Survey year", y = "Number of meat-eating occasions/day", color = "Meat category") +
+#   scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
+#   theme_classic() +
+#   theme(text = element_text(family = "Times", size = 12),
+#         axis.text.x = element_text(angle = 45, hjust = 1)) +
+#   guides(linetype = guide_legend(override.aes = list(color = "black")))
+# print(plot2)
+
+
+
+
+
+
+
+
+
+
 #portion size
-m2 <- svyglm(gperokajProcessed ~ SurveyYear, family=poisson(link = "log"), dat.design)
-m3 <- svyglm(gperokajRed ~ SurveyYear, family=poisson(link = "log"), dat.design)
-m4 <- svyglm(gperokajWhite ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m2 <- svyglm(gperokajProcessed ~ SurveyYear, dat.design)
+m3 <- svyglm(gperokajRed ~ SurveyYear, dat.design)
+m4 <- svyglm(gperokajWhite ~ SurveyYear, dat.design)
 #fitted values for each model
 survey_years <- unique(dat.design$variables$SurveyYear)
 predictions <- data.frame(
@@ -1170,12 +1904,14 @@ transparent_theme <- theme(
   legend.background = element_rect(fill = "transparent", color = NA),
   legend.key = element_rect(fill = "transparent", color = NA)
 )
+plot0 <- plot0 + transparent_theme
 plot1 <- plot1 + transparent_theme
 plot2 <- plot2 + transparent_theme
 plot3 <- plot3 + transparent_theme
 
 #combine all into 1 figure
 #Remove the legend from plot2 and plot3
+plot0 <- plot0 + theme(legend.position = "none")
 plot2 <- plot2 + theme(legend.position = "none")
 plot3 <- plot3 + theme(legend.position = "none")
 #extract the legend from plot1
@@ -1183,11 +1919,17 @@ legend_grob <- cowplot::get_legend(plot1)
 #remove the legend from plot1
 plot1 <- plot1 + theme(legend.position = "none")
 #combine the plots and legend into a single plot
-top_row <- cowplot::plot_grid(plot1, plot2, nrow = 1)
-bottom_row <- cowplot::plot_grid(plot3, legend_grob, nrow = 1, rel_widths = c(1, 1))
-combined_plot <- cowplot::plot_grid(top_row, bottom_row, ncol = 1, rel_heights = c(1, 1))
-print(combined_plot)
-ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 1.png", combined_plot, width = 8, height = 8, dpi = 600)
+top_row <- cowplot::plot_grid(plot0, plot1, nrow = 1, rel_widths = c(1, 1))
+bottom_row <- cowplot::plot_grid(plot2, plot3, nrow = 1, rel_widths = c(1, 1))
+combined_plot <- cowplot::plot_grid(top_row, bottom_row, legend_grob, ncol = 1, rel_heights = c(1, 1, 0.2))
+combined_plots <- cowplot::plot_grid(
+  cowplot::plot_grid(plot0, plot1, plot2, plot3, nrow = 2),
+  legend_grob,
+  ncol = 2,
+  rel_widths = c(4, 1)
+)
+print(combined_plots)
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 1.png", combined_plots, width = 10, height = 10, dpi = 600)
 #used these for a prezzi - gonna save them just in case
 ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/plot1.png", plot1, width = 4, height = 4, dpi = 900)
 ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/plot2.png", plot2, width = 4, height = 4, dpi = 900)
@@ -1199,25 +1941,30 @@ ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/plot3.png",
 meat_data <- data.frame(
   Meat = factor(c("Total meat", "Processed meat", "Red meat", "White meat"),
                 levels = c("Total meat", "Processed meat", "Red meat", "White meat")),
-  Total_Delta = c(-79.94, -32.18, -64.61, 7.08),
-  Portion_Size_Delta = c(-45.71, -21.90, -31.02, -8.39),
-  Days_Delta = c(-29.61, -12.53, -29.41, 13.92),
-  Occasions_Delta = c(-4.62, 2.25, -4.18, 1.55)
+  Total_Delta = c(-17.5305056, -6.8380170, -13.8349454, 3.1424567),
+  Portion_Size_Delta = c(-9.07413433, -4.24183672, -5.63292764, -0.61954963),
+  Days_Delta = c(-4.28302706, -0.66615783, -2.40294280, 2.19495175),
+  Consumers_Delta = c(-3.03213833, -2.49714327, -4.77907992, 1.18941247),
+  Occasions_Delta = c(-1.14120588, 0.56712086, -1.01999501, 0.37764214)
 )
-meat_data_divided <- meat_data
 numeric_columns <- sapply(meat_data, is.numeric)
-#divide numeric columns by 4 (to represent daily intake)
-meat_data_divided[, numeric_columns] <- meat_data[, numeric_columns] / 4
-#rename back to original
-meat_data <- meat_data_divided
 print(meat_data)
 #transform
 melted_data <- reshape2::melt(meat_data, id.vars = "Meat")
 #make plot
+
+f <- function(pal) brewer.pal(brewer.pal.info[pal, "maxcolors"], pal)
+(cols <- f("Spectral"))
+(cols <- f("RdYlGn"))
+(cols <- f("Oranges"))
+(cols <- f("YlOrRd"))
+(cols <- f("Reds"))
+
 bar_plot <- ggplot(melted_data, aes(x = Meat, y = value, fill = variable)) +
   geom_bar(stat = "identity", position = "dodge", width = 0.5) +
-  scale_fill_manual(values = c("Total_Delta" = "black", "Days_Delta" = "#FB6A4A", "Occasions_Delta" = "#FCBBA1", "Portion_Size_Delta" = "#CB181D"),
+  scale_fill_manual(values = c("Total_Delta" = "black", "Consumers_Delta" = "#FC9272", "Days_Delta" = "#EF3B2C", "Occasions_Delta" = "#FEE0D2", "Portion_Size_Delta" = "#A50F15"),
                     labels = c("Total_Delta" = "Total change",
+                               "Consumers_Delta" = "Proportion of meat eaters",
                                "Days_Delta" = "Meat-eating days",
                                "Occasions_Delta" = "Meat-eating occasions",
                                "Portion_Size_Delta" = "Portion size of meat")) +
@@ -1225,7 +1972,7 @@ bar_plot <- ggplot(melted_data, aes(x = Meat, y = value, fill = variable)) +
   theme_classic() +
   theme(text = element_text(family = "Times", size = 12)) 
 #define the y-axis limits (didn't like the cuts it was giving me)
-y_limits <- c(-22, 5)
+y_limits <- c(-20, 5)
 #update plot with modified y-axis limits/breaks and a dashed line at y=0
 bar_plot <- bar_plot +
   scale_y_continuous(limits = y_limits, expand = c(0, 0), 
@@ -1233,10 +1980,13 @@ bar_plot <- bar_plot +
   geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
   geom_text(aes(label = sprintf("%.1f", value), y = value, group = variable, vjust = ifelse(value >= 0, -0.5, 1.5)), 
             position = position_dodge(width = 0.5), size = 2.5)
-bar_plot <- bar_plot + transparent_theme
+bar_plot <- bar_plot + transparent_theme + theme(
+  legend.position = c(0.86, 0.15),
+  legend.box.background = element_rect(color = "black", size = 0.5),
+  legend.box.margin = margin(8, 8, 8, 8))
 print(bar_plot)
 file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 2.png"
-ggsave(file_path, bar_plot, width = 10, height = 8, dpi = 600)
+ggsave(file_path, bar_plot, width = 9, height = 7, dpi = 600)
 
 ###############FIGURE 3#################################
 custom_x_labels <- function(x) {
