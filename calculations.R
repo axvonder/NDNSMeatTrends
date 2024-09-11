@@ -1603,6 +1603,7 @@ plot0 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedConsumers, color =
                         labels = c("solid" = "Actual data", "dotted" = "2008/09-2018/19 trend")) +
   labs(x = "Survey year", y = "Proportion of the population consuming meat (%)", color = "Meat category") +
   scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
+  scale_y_continuous(labels = percent_format(accuracy = 1), limits = c(0.67, 0.83)) +
   theme_classic() +
   theme(text = element_text(family = "Times", size = 12),
         axis.text.x = element_text(angle = 45, hjust = 1)) +
@@ -1918,6 +1919,24 @@ plot3 <- plot3 + theme(legend.position = "none")
 legend_grob <- cowplot::get_legend(plot1)
 #remove the legend from plot1
 plot1 <- plot1 + theme(legend.position = "none")
+
+
+# Add labels to each plot
+plot0 <- plot0 + 
+  annotate("text", x = -Inf, y = Inf, label = "A", vjust = 1.25, hjust = -0.75, family = "Times", size = 6, fontface = "bold")
+
+plot1 <- plot1 + 
+  annotate("text", x = -Inf, y = Inf, label = "B", vjust = 1.25, hjust = -1.25, family = "Times", size = 6, fontface = "bold")
+
+plot2 <- plot2 + 
+  annotate("text", x = -Inf, y = Inf, label = "C", vjust = 1, hjust = -0.75, family = "Times", size = 6, fontface = "bold")
+
+plot3 <- plot3 + 
+  annotate("text", x = -Inf, y = Inf, label = "D", vjust = 1, hjust = -1.25, family = "Times", size = 6, fontface = "bold")
+
+plot0 <- plot0 + labs(x = NULL)
+plot1 <- plot1 + labs(x = NULL)
+
 #combine the plots and legend into a single plot
 top_row <- cowplot::plot_grid(plot0, plot1, nrow = 1, rel_widths = c(1, 1))
 bottom_row <- cowplot::plot_grid(plot2, plot3, nrow = 1, rel_widths = c(1, 1))
@@ -1929,11 +1948,11 @@ combined_plots <- cowplot::plot_grid(
   rel_widths = c(4, 1)
 )
 print(combined_plots)
-ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 1.png", combined_plots, width = 10, height = 10, dpi = 600)
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 1.pdf", combined_plots, width = 10, height = 10, dpi = 600)
 #used these for a prezzi - gonna save them just in case
-ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/plot1.png", plot1, width = 4, height = 4, dpi = 900)
-ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/plot2.png", plot2, width = 4, height = 4, dpi = 900)
-ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/plot3.png", plot3, width = 4, height = 4, dpi = 900)
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/plot1.pdf", plot1, width = 4, height = 4, dpi = 900)
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/plot2.pdf", plot2, width = 4, height = 4, dpi = 900)
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/plot3.pdf", plot3, width = 4, height = 4, dpi = 900)
 
 ################FIGURE 2#########################
 #decomposition analysis plot
@@ -1981,11 +2000,11 @@ bar_plot <- bar_plot +
   geom_text(aes(label = sprintf("%.1f", value), y = value, group = variable, vjust = ifelse(value >= 0, -0.5, 1.5)), 
             position = position_dodge(width = 0.5), size = 2.5)
 bar_plot <- bar_plot + transparent_theme + theme(
-  legend.position = c(0.86, 0.15),
-  legend.box.background = element_rect(color = "black", size = 0.5),
+  legend.position = c(0.83, 0.25),
+  legend.box.background = element_rect(color = "black", linewidth = 0.5),
   legend.box.margin = margin(8, 8, 8, 8))
 print(bar_plot)
-file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 2.png"
+file_path <- "~/University of Edinburgh/NDNS Meat Trends - General/Results/Figure 2.pdf"
 ggsave(file_path, bar_plot, width = 9, height = 7, dpi = 600)
 
 ###############FIGURE 3#################################
@@ -2150,9 +2169,33 @@ meat_days_counts <- dat_svy %>%
 
 
 
+# Fit the model, assuming PropMeat is a proportion
+m2 <- svyglm(PropMeat ~ SurveyYear, family = quasibinomial(link = "logit"), dat.design)
+
+# Generate predictions
+survey_years <- unique(dat.design$variables$SurveyYear)  # Ensure this extracts the years correctly
+predicted_proportions <- predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response")
+
+# Create the predictions data frame
+predictions <- data.frame(
+  SurveyYear = survey_years,
+  PredictedProportion = predicted_proportions
+)
+
+# Check if predictions data frame is created correctly
+print(predictions)
+
+# Plotting using the correct column name
+ggplot(predictions, aes(x = SurveyYear, y = PredictedProportion.response)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Survey Year", y = "Predicted Proportion of Meat Consumption") +
+  theme_minimal()
+
+
+
 
 ###################SI FIGURE 2#####################
-
 
 #set survey designs
 dat$SurveyYear <- as.factor(dat$SurveyYear)
@@ -2167,14 +2210,62 @@ dat.design <-
     fpc = ~fpc
   )
 
+
+# Adjust weights for Total meat days
+dat$MeatWeight <- ifelse(dat$sumMeatg > 0, dat$wti, 0)
+dat.design_meat_days <- svydesign(
+  id = ~area,
+  strata = ~astrata5,
+  data = dat,
+  weights = ~MeatWeight,
+  fpc = ~fpc
+)
+
+
 #function for Survey Year x axis labels
 custom_x_labels <- function(x) {
   labels <- ifelse(x == 1, "2008/09", sprintf("'%02d/'%02d", x + 7, (x + 7) %% 100 + 1))
   return(labels)
 }
 #line plot of meat trends
+
+#proportion of population
+m2 <- svyglm(PropMeat ~ SurveyYear, family=poisson(link = "log"), dat.design)
+#fitted values for each model
+survey_years <- unique(dat.design$variables$SurveyYear)
+predictions <- data.frame(
+  SurveyYear = rep(survey_years, 1),
+  Category = factor(rep(c("PropMeat"), each = length(survey_years))),
+  PredictedProp = c(predict(m2, newdata = data.frame(SurveyYear = survey_years), type = "response"))
+)
+#create a custom color palette using colorblind friendly colors
+color_palette <- c("#CC79A7") #only total meat
+#correct order
+predictions$Category <- factor(predictions$Category, levels = c("PropMeat"))
+#category names
+levels(predictions$Category) <- c("Total meat")
+#convert SurveyYear to numeric
+predictions$SurveyYear <- as.numeric(as.character(predictions$SurveyYear))
+#create plot
+plot0 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedProp, color = Category, group = Category)) +
+  geom_point(size = 1) +
+  geom_line(aes(linetype = "solid")) +
+  geom_smooth(method = "glm", formula = 'y ~ x', se = FALSE, aes(linetype = "dotted", group = Category)) +
+  scale_color_manual(values = color_palette) +
+  scale_linetype_manual(name = "Line type",
+                        values = c("solid" = "solid", "dotted" = "dotted"),
+                        labels = c("solid" = "Actual data", "dotted" = "2008/09-2018/19 trend")) +
+  labs(x = "Survey year", y = "Proportion of the population consuming meat (%)", color = "Meat category") +
+  scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
+  scale_y_continuous(labels = percent_format(accuracy = 1), limits = c(0.9, 1)) +
+  theme_classic() +
+  theme(text = element_text(family = "Times", size = 12),
+        axis.text.x = element_text(angle = 45, hjust = 1)) +
+  guides(linetype = guide_legend(override.aes = list(color = "black")))
+print(plot0)
+
 #Days
-m2 <- svyglm(MeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m2 <- svyglm(MeatDays ~ SurveyYear, family=poisson(link = "log"), dat.design_meat_days)
 #fitted values for each model
 survey_years <- unique(dat.design$variables$SurveyYear)
 predictions <- data.frame(
@@ -2201,7 +2292,7 @@ plot1 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Cate
                         labels = c("solid" = "Actual data", "dotted" = "2008/09-2018/19 trend")) +
   labs(x = "Survey year", y = "Number of meat days/4-day period", color = "Meat category") +
   scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
-  ylim(2.95, 3.35) +
+  ylim(3.2, 3.45) +
   theme_classic() +
   theme(text = element_text(family = "Times", size = 12),
         axis.text.x = element_text(angle = 45, hjust = 1)) +
@@ -2209,7 +2300,7 @@ plot1 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedDays, color = Cate
 print(plot1)
 
 #Occasions
-m2 <- svyglm(avgMeatokaj ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m2 <- svyglm(avgMeatokaj ~ SurveyYear, family=poisson(link = "log"), dat.design_meat_days)
 #fitted values for each model
 survey_years <- unique(dat.design$variables$SurveyYear)
 predictions <- data.frame(
@@ -2231,9 +2322,9 @@ plot2 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedOccasions, color =
   geom_line() +
   geom_smooth(method = "glm", se = FALSE, linetype = "dotted", aes(group = Category)) + #this adds the fitted line
   scale_color_manual(values = color_palette) +
-  labs(x = "Survey year", y = "No. meat-eating occasions/day", color = "Meat category") +
+  labs(x = "Survey year", y = "Number of meat-eating occasions/day", color = "Meat category") +
   scale_x_continuous(breaks = predictions$SurveyYear, labels = custom_x_labels) +
-  ylim(1.1, 1.3) +
+  ylim(1.4, 1.5) +
   theme_classic() +
   theme(text = element_text(family = "Times", size = 12),
         axis.text.x = element_text(angle = 45, hjust = 1)) +
@@ -2241,7 +2332,7 @@ plot2 <- ggplot(predictions, aes(x = SurveyYear, y = PredictedOccasions, color =
 print(plot2)
 
 #portion size
-m2 <- svyglm(gperokajMeat ~ SurveyYear, family=poisson(link = "log"), dat.design)
+m2 <- svyglm(gperokajMeat ~ SurveyYear, family=poisson(link = "log"), dat.design_meat_days)
 #fitted values for each model
 survey_years <- unique(dat.design$variables$SurveyYear)
 predictions <- data.frame(
@@ -2279,24 +2370,47 @@ transparent_theme <- theme(
   legend.background = element_rect(fill = "transparent", color = NA),
   legend.key = element_rect(fill = "transparent", color = NA)
 )
+plot0 <- plot0 + transparent_theme
 plot1 <- plot1 + transparent_theme
 plot2 <- plot2 + transparent_theme
 plot3 <- plot3 + transparent_theme
 
 #combine all into 1 figure
 #Remove the legend from plot2 and plot3
+plot0 <- plot0 + theme(legend.position = "none")
 plot2 <- plot2 + theme(legend.position = "none")
 plot3 <- plot3 + theme(legend.position = "none")
 #extract the legend from plot1
 legend_grob <- cowplot::get_legend(plot1)
 #remove the legend from plot1
 plot1 <- plot1 + theme(legend.position = "none")
+
+
+
+
 #combine the plots and legend into a single plot
-top_row <- cowplot::plot_grid(plot1, plot2, nrow = 1)
-bottom_row <- cowplot::plot_grid(plot3, legend_grob, nrow = 1, rel_widths = c(1, 1))
-combined_plot <- cowplot::plot_grid(top_row, bottom_row, ncol = 1, rel_heights = c(1, 1))
-print(combined_plot)
-ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/SI Figure 2.png", combined_plot, width = 8, height = 8, dpi = 600)
+top_row <- cowplot::plot_grid(plot0, plot1, nrow = 1, rel_widths = c(1, 1))
+bottom_row <- cowplot::plot_grid(plot2, plot3, nrow = 1, rel_widths = c(1, 1))
+combined_plot <- cowplot::plot_grid(top_row, bottom_row, legend_grob, ncol = 1, rel_heights = c(1, 1, 0.2))
+combined_plots <- cowplot::plot_grid(
+  cowplot::plot_grid(plot0, plot1, plot2, plot3, nrow = 2),
+  legend_grob,
+  ncol = 2,
+  rel_widths = c(4, 1)
+)
+print(combined_plots)
+
+library(patchwork)
+legend_grob <- get_legend(plot1)
+
+combined_plots <- (plot0 | plot1) / (plot2 | plot3)
+final_plot <- combined_plots + plot_layout(guides = 'collect') & theme(legend.position = 'right')
+print(final_plot)
+
+# Display the combined plot
+print(combined_plots)
+
+ggsave("~/University of Edinburgh/NDNS Meat Trends - General/Results/SI Figure 2.png", combined_plots, width = 8, height = 8, dpi = 600)
 
 
 
