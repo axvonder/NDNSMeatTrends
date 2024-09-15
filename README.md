@@ -1,11 +1,11 @@
 Hi! Thanks for accessing these open-access files for our project.
 Any questions should be directed to: a.vonderschmidt@sms.ed.ac.uk
 
-Project: Contribution of Meat-Free Days, Meat-Free Meals, and Portion Sizes to Declines in Meat Consumption in the UK
+Project: Smaller meat portions contribute the most to reducing meat consumption in the UK
 
 Project Description
 
-This project aims to analyze the decline in meat consumption in the UK from 2008 to 2019 and identify which behaviors have contributed to this decline. The focus is on changes in the frequency of eating meat, the number of daily eating occasions with meat, and the change in portion size. The findings will help tailor behavior change interventions and public health policies to accelerate the reduction in meat consumption towards national goals for population and environmental health.
+This project aims to analyze the decline in meat consumption in the UK from 2008 to 2019 and identify which behaviors have contributed to this decline. The focus is on changes in the proportion of the population consuming meat, the frequency of eating meat, the number of daily eating occasions with meat, and the change in portion size. The findings will help tailor behavior change interventions and public health policies to accelerate the reduction in meat consumption towards national goals for population and environmental health.
 
 Table of Contents
 
@@ -21,9 +21,9 @@ Table of Contents
 
 ## 1. Introduction
 
-The study is based on an analysis plan developed by Alexander Vonderschmidt (lead author), Alexandra Bellows, Lindsay Jaacks, Peter Alexander, and Cristina Stewart (senior author). The publication can be found [HERE-CITE PUBLICATION WHEN PUBLIC]. The main objectives of the analysis are:
+The study is based on an analysis plan developed by Alexander Vonderschmidt (lead author), Lindsay Jaacks, Peter Alexander, Rosemary Green, Alexandra Bellows (co-senior author), and Cristina Stewart (co-senior author). The publication can be found [HERE-CITE PUBLICATION WHEN PUBLIC]. The main objectives of the analysis are:
 
-- Investigate changes in the frequency of meat consumption, the number of daily eating occasions with meat, and the change in portion size.
+- Investigate changes in the proportion of the population consuming meat, frequency of meat consumption, the number of daily eating occasions with meat, and the change in portion size.
 - Determine what proportion of declines in meat consumption can be attributed to each of these three behaviors.
 - Investigate how frequency and portion size changed by standard mealtime (breakfast, lunch, and dinner) and key population subgroups such as age, sex, and deprivation level.
 
