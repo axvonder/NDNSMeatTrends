@@ -219,6 +219,9 @@ rm(final_results, results_ageg, results_sex, results_eqv,
    ordered_levels_ageg, ordered_levels_sex, ordered_levels_eqv,
    demo_yearby)
 
+
+
+
 #############SI TABLE 2###################
 meat_types <- c("Total Meat", "Processed Meat", "Red Meat", "White Meat")
 sitable2 <- data.frame(matrix(ncol = 12, nrow = 4))
@@ -243,6 +246,8 @@ for (year in 1:11) {
 #set variables per day (divide by 4) and apply rounding condition
 sitable2[, -1] <- apply(sitable2[, -1] / 4, 2, round_condish)
 #checked that the sum of all sub meat types add up to their respective total meat amount for each year
+
+
 
 #############################TABLE 2 - main analysis (also SI table 3) ###################
 #calculate proportion of participants who are meat consumers for each meat subtype
